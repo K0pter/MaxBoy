@@ -848,8 +848,7 @@ rollout ToolBoy "ToolBoy"
 	(
 		print("Hey, it's ToolBoy!")
 
-		addSubRollout UI_Base ToolBoy
-
+		--addSubRollout UI_Base ToolBoy
 		addSubRollout UI_Base UI_Settings
 		addSubRollout UI_Base UI_Rigging
 		addSubRollout UI_Base UI_Mesh

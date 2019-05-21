@@ -61,9 +61,9 @@
 	buttonText:"PipeBoy"
 	toolTip:"Pipeline tool for game asset creation"
 	(
-		local pPath = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy.ms" )
+		local pbPath = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy.ms" )
 
-		fileIn pPath
+		fileIn pbPath
 	)
 
 	MacroScript ToolBoyTool
@@ -72,8 +72,8 @@
 	buttonText:"ToolBoy"
 	toolTip:"Toolbox with functions to assist content creation"
 	(
-		local pPath = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\ToolBoy.ms" )
+		local tbPath = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\ToolBoy.ms" )
 
-		fileIn pPath
+		fileIn tbPath
 	)
 )
