@@ -1,30 +1,42 @@
+/*////////////////////////////////////////////////
+PipeBoy is a pipeline tool that strives to improve
+general workflows for game-related asset creation.
+////////////////////////////////////////////////*/
 
 --Start PipeBoy--
 (
+--Initialize persistent globals
 persistent global currentProjectSelected, currentAssetSelected, PrintToConsole --Persistent handles
+
+--Initialize globals
 global PipeBoy --Rollout class handle
-global PipeBoySettings
-global PBS --Pipeboy settings file handle
+global PipeBoySettings --Pipeboy settings file
+global PBS --Pipeboy settings .ini file handle
 
 global UnlinkFromParent
 global ZeroRootToOrigin
 
+global gName = (getFilenameFile  maxFileName)
+global exportGroup = #()
+global cleanGroup = #()
+global projectArray = #()
+
+/*
 fn getScriptLocation =
 (
 	local ScriptName = "PipeBoy.ms"
-	local FileName = getThisScriptFilename()  as string
+	local FileName = getSourceFileName() as string
+	--local FileName = getThisScriptFilename()  as string
 	local FilteredPath = replace FileName (FileName.count - ScriptName.count + 1) (ScriptName.count) ""
-
-	free ScriptName
-	free FileName
 	
 	--print(FilteredPath)
-	
 	return FilteredPath
 )
+*/
 	
 fn printc str = 
 (
+	--Custom print funciton for visual debug
 	if (PrintToConsole == true) do (try(print(str))catch())
 )
 
@@ -157,13 +169,14 @@ fn LodGenerator &Obj Lods =
 	clearSelection()
 )
 
-rollout PipeBoy "PipeBoy" width:325 height:90
-(		
-	global getName = (getFilenameFile  maxFileName)
-	global exportGroup = #()
-	global cleanGroup = #()
-	global projectArray = #()
-	
+rollout PipeBoy "PipeBoy"
+(	
+	--Construct Base UI "Frame" for rollout windows
+	subRollout UI_Base width:325 height:90 pos:[-1,-1]
+
+	--include "MaxBoy_Functions.ms"
+	include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
+
 	fn RefreshRollouts = 
 	(
 		global ro_m = PipeBoy.UI_RolloutGroup_Main
@@ -172,7 +185,7 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 		global ro_p = PipeBoy.UI_RolloutGroup_Project
 	)
 	
-	fn RotatePivotOnly obj = 
+	fn RotatePivotOnlyEngine obj = 
 	(
 		/*
 		1 = X-Forward
@@ -215,9 +228,10 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 		
 		local RotValInv = inverse (EulerAngles 90 0 90 as quat)
 
-		animate off in coordsys local obj.rotation*=RotValInv
-		obj.objectOffsetPos*=RotValInv
-		obj.objectOffsetRot*=RotValInv
+		animate off in coordsys local
+		(
+			obj.objectoffsetrot *= (_rotation as quat)
+		)
 	)
 
 	fn exportProcess ExportType CurrentProjectKey =
@@ -227,7 +241,7 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 		RefreshRollouts()
 		
 		--Update filename to base asset name from
-		getName = (getFilenameFile  maxFileName)
+		gName = (getFilenameFile  maxFileName)
 		
 		thePlugin = pluginManager
 		thePlugin.loadClass FBXEXPORTER
@@ -293,7 +307,7 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 		--Check if not animation asset type
 		if (ro_a.IsType.selection != 4) then
 		(
-			local p_filenameFolderPath = ("\\" + getName + "\\")
+			local p_filenameFolderPath = ("\\" + gName + "\\")
 		)
 		else
 		(
@@ -319,7 +333,7 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 			makeDir p_fileExportPath
 		)
 		
-		fileExportName = (p_fileExportPath + getName + ".fbx") as string
+		fileExportName = (p_fileExportPath + gName + ".fbx") as string
 		exportfile (fileExportName) #noprompt selectedOnly:true using:thePlugin
 		
 		print("Exported to file: " + fileExportName)
@@ -358,7 +372,7 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 
 				--Create root export object for axis conversion
 				local ExportParent = Point Size:500 Name:"ExportParent"
-				RotatePivotOnly(ExportParent)
+				RotatePivotOnlyEngine(ExportParent)
 				FreezeTransforms(ExportParent)
 				
 				append exportGroup ExportParent
@@ -407,7 +421,7 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 						local GroupName = replace (trimRight (g.name as string) "0123456789") 1 s_MeshGroupPrefix.count ""
 						
 						local GroupParent = Point Size:100 Name:(("g_" + GroupName) as string)
-						RotatePivotOnly(GroupParent)
+						RotatePivotOnlyEngine(GroupParent)
 						append exportGroup GroupParent
 						append cleanGroup GroupParent
 						
@@ -450,7 +464,7 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 						else
 						(CombinedMesh.parent = GroupParent)		
 						
-						RotatePivotOnly(CombinedMesh)
+						RotatePivotOnlyEngine(CombinedMesh)
 						
 						--Add combined object to group
 						append exportGroup CombinedMesh
@@ -481,7 +495,7 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 							if (CurrentParent == undefined) then	(c.parent = ExportParent) else (c.parent = CurrentParent)
 						)
 						
-						RotatePivotOnly(c)
+						RotatePivotOnlyEngine(c)
 						
 						append exportGroup c
 						--append cleanGroup c
@@ -546,7 +560,8 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 	fn LoadVariables = 
 	(		
 		--Setup which project to load from file
-		tempProjectArray = (getINISetting PBS "MainData" "g_Projects")
+		--print("PBS: " + PBS)
+		tempProjectArray = getINISetting PBS "MainData" "g_Projects"
 		global projectArray = execute tempProjectArray
 		
 		if (currentProjectSelected == undefined OR currentProjectSelected == 0) then
@@ -560,18 +575,18 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 		(	
 			local pro = (projectArray[t_selectProject] as string)
 			
-			global p_ProjectRoot = (getINISetting PBS pro "p_projectRoot")
-			global p_ProjectSource = (getINISetting PBS pro "p_projectSource")
-			global p_projectAsset = (getINISetting PBS pro "p_projectAsset")
+			global p_ProjectRoot = 		getINISetting PBS pro "p_projectRoot"
+			global p_ProjectSource = 	getINISetting PBS pro "p_projectSource"
+			global p_projectAsset =		getINISetting PBS pro "p_projectAsset"
 			
-			global s_Engine = (getINISetting PBS pro "s_Engine") as Integer
-			global s_ImportFromRaw = (getINISetting PBS pro "s_ImportFromRaw") as booleanClass
-			global s_ForwardAxis = getINISetting PBS pro "s_ForwardAxis" as Integer
-			global s_MeshGroupPrefix = getINISetting PBS pro "s_MeshGroupPrefix"
+			global s_Engine = 			getINISetting PBS pro "s_Engine" as Integer
+			global s_ImportFromRaw = 	getINISetting PBS pro "s_ImportFromRaw" as booleanClass
+			global s_ForwardAxis = 		getINISetting PBS pro "s_ForwardAxis" as Integer
+			global s_MeshGroupPrefix = 	getINISetting PBS pro "s_MeshGroupPrefix"
 			
-			global s_BonePrefix = getINISetting PBS pro "s_BonePrefix"
-			global s_BoneRoot = getINISetting PBS pro "s_BoneRoot"
-			global s_AlignPrefix = getINISetting PBS pro "s_AlignPrefix"
+			global s_BonePrefix = 		getINISetting PBS pro "s_BonePrefix"
+			global s_BoneRoot = 		getINISetting PBS pro "s_BoneRoot"
+			global s_AlignPrefix = 		getINISetting PBS pro "s_AlignPrefix"
 			
 			print("Loaded project: " + pro)
 		)
@@ -580,14 +595,6 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 			MessageBox "Project seems to be missing!" title:"Missing project!"
 		)
 	)
-	
-	fn getChildren obj:selection[1] = 
-	(
-		execute ("$'" + (obj.name) + "'/*/.../*")
-	)
-	
-	--Construct Base UI "Frame" for rollout windows
-	subRollout UI_BaseRollout width:325 height:90 pos:[-1,-1]
 	
 	rollout UI_RolloutGroup_Main "Export"
     (		
@@ -604,20 +611,8 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 			spinner anim_range_start "" pos:[160,73] width:50 height:16 range:[-10000,10000,normTime 0] type:#integer
 			spinner anim_range_end  "to  " pos:[160+70,73] width:50 height:16 range:[-10000,10000,normTime 1] type:#integer
 		)
-		
-        on UI_RolloutGroup_Main rolledUp bState do
-        (
-            if (bState == true) then
-            (
-				UI_BaseRollout.height += UI_RolloutGroup_Main.height
-				PipeBoy.height += UI_RolloutGroup_Main.height
-            )
-            else
-            (
-				UI_BaseRollout.height -= UI_RolloutGroup_Main.height
-				PipeBoy.height -= UI_RolloutGroup_Main.height
-            )
-        )
+
+		on UI_RolloutGroup_Main rolledUp State do (resizeWindow PipeBoy State UI_RolloutGroup_Main)
 		
 		on Export pressed do
 		(	
@@ -702,19 +697,7 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 			IsType.selection = currentAssetSelected
 		)
 		
-        on UI_RolloutGroup_Asset rolledUp bState do
-        (
-            if (bState == true) then
-            (
-				UI_BaseRollout.height += UI_RolloutGroup_Asset.height
-				PipeBoy.height += UI_RolloutGroup_Asset.height
-            )
-            else
-            (
-				UI_BaseRollout.height -= UI_RolloutGroup_Asset.height
-				PipeBoy.height -= UI_RolloutGroup_Asset.height
-            )
-        )
+		on UI_RolloutGroup_Asset rolledUp State do (resizeWindow PipeBoy State UI_RolloutGroup_Asset)
 		
 		on UI_RolloutGroup_Asset open do
 		(
@@ -746,19 +729,7 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 			ZeroRootToOrigin = newState
 		)
 
-        on UI_RolloutGroup_General rolledUp bState do
-        (
-            if (bState == true) then
-            (
-				UI_BaseRollout.height += UI_RolloutGroup_General.height
-				PipeBoy.height += UI_RolloutGroup_General.height
-            )
-            else
-            (
-				UI_BaseRollout.height -= UI_RolloutGroup_General.height
-				PipeBoy.height -= UI_RolloutGroup_General.height
-            )
-        )
+		on UI_RolloutGroup_General rolledUp State do (resizeWindow PipeBoy State UI_RolloutGroup_General)
 		
 		on UI_RolloutGroup_General open do
 		(
@@ -770,28 +741,21 @@ rollout PipeBoy "PipeBoy" width:325 height:90
     (    
 		group "Project Settings"
 		(	
-			dropdownlist currentProject "Project" width:125
-			button editProjectSettings "Edit project settings" align:#left
+			dropdownlist currentProject "Project" width:125 
+			button refreshProjects "Refresh" pos:[148,44]
+		)
+
+		group ""
+		(
+			button editProjectSettings "Edit project settings" align:#center
 		)
 		
 		on UI_RolloutGroup_Project open do
 		(
 			UI_RolloutGroup_Project.open = false
 		)
-		
-        on UI_RolloutGroup_Project rolledUp bState do
-        (
-            if (bState == true) then
-            (
-				UI_BaseRollout.height += UI_RolloutGroup_Project.height
-				PipeBoy.height += UI_RolloutGroup_Project.height
-            )
-            else
-            (
-				UI_BaseRollout.height -= UI_RolloutGroup_Project.height
-				PipeBoy.height -= UI_RolloutGroup_Project.height
-            )
-        )
+
+		on UI_RolloutGroup_Project rolledUp State do (resizeWindow PipeBoy State UI_RolloutGroup_Project)
 		
 		on editProjectSettings pressed do
 		(
@@ -811,6 +775,13 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 				currentProjectSelected = 1
 			)
 		)
+
+		on refreshProjects pressed do
+		(
+			LoadVariables()
+
+			currentProject.items = projectArray
+		)
     )
 	
 	on PipeBoy open do
@@ -820,10 +791,10 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 		if (currentAssetSelected == 0  OR currentAssetSelected == undefined) do (currentAssetSelected = 1)
 		if (PrintToConsole == undefined) do (PrintToConsole = false)
 		
-		addSubRollout UI_BaseRollout UI_RolloutGroup_Main
-		addSubRollout UI_BaseRollout UI_RolloutGroup_Asset
-		addSubRollout UI_BaseRollout UI_RolloutGroup_General
-		addSubRollout UI_BaseRollout UI_RolloutGroup_Project
+		addSubRollout UI_Base UI_RolloutGroup_Main
+		addSubRollout UI_Base UI_RolloutGroup_Asset
+		addSubRollout UI_Base UI_RolloutGroup_General
+		addSubRollout UI_Base UI_RolloutGroup_Project
 		
 		global ro_m = PipeBoy.UI_RolloutGroup_Main
 		global ro_a = PipeBoy.UI_RolloutGroup_Asset
@@ -832,9 +803,16 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 		
 		ro_a.IsType.selection = 1
 		
+		/*Old PBS setup
 		global path_settings = getScriptLocation() --Get script location on computer to load project data
+		
 		global PBS = (path_settings + "Pipeboy_Settings.ini") --Setup settings file
 		global PipeBoySettings = (path_settings + "PipeBoy_ProjectSettings.ms")
+		*/
+
+		PBS = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_Settings.ini")
+		PipeBoySettings = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_ProjectSettings.ms")
+
 		--Setup interface data
 		LoadVariables()
 		
@@ -846,6 +824,6 @@ rollout PipeBoy "PipeBoy" width:325 height:90
 	)
 )
 
-)
 try(destroyDialog PipeBoy)catch()
-createDialog PipeBoy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,150]
+createDialog PipeBoy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,150] width:325 height:90
+)

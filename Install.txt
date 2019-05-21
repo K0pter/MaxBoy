@@ -1,0 +1,52 @@
+///////////////////////////////////////////
+//  __  __            ____               //
+// |  \/  |          |  _ \              //
+// | \  / | __ ___  _| |_) | ___  _   _  //
+// | |\/| |/ _` \ \/ /  _ < / _ \| | | | //
+// | |  | | (_| |>  <| |_) | (_) | |_| | //
+// |_|  |_|\__,_/_/\_\____/ \___/ \__, | //
+//                                 __/ | //
+//                                |___/  //
+//								         //
+///////////////////////////////////////////
+
+[Installation]
+
+1. Place the "MaxBoy" folder into your max's "scripts" folder (usually at: "C:\Program Files\Autodesk\3ds Max 2017\scripts")
+
+2. Either drag in "MaxBoy_Installer.ms" into the max viewport- or if that doesn't work, run the same script by going to "Max's toolbar" -> "Scripting" -> "Run Script..." (It will print in the console to confirm)
+
+3. Go to "Max's toolbar" -> "Customize User Interface..." -> "Toolbars tab" -> Create a new toolbar (to the right), and call it "MaxBoy"
+
+4. Now a tiny, empty floater should've popped up. While keeping the "Group" as "Main UI", change the "Category" to MaxBoy.
+
+5. Within the "Action" list, there should be two items listed. Drag out each of them into the floater you just created previously.
+
+6. Doc the floater somewhere, or keep it as is for easy acess! (you should probably save the UI after this to keep the change)
+
+7. Done! You should be able to execute the tools from the floater now!
+
+
+!IMPORTANT!: If you're installing a new version of the scripts, it will not overwrite your "PipeBoy_Settings.ini" file currently! This is to avoid discarding your current project settings- but it might cause errors in the future.
+I'll try and work around it for the future, and if it turns out that you're gonna HAVE to overwrite the file, I'll make sure to notify. 
+
+
+If anything throws weird errors after these steps, try running the scripts again and see if the problem persists. 
+
+Please inform me regarding any bugs you come across, since I want to make sure it works as smoothly as possible!
+
+And yes, I'll try and make a google doc manual for this as well sometime, keep an eye and and ear out for that!
+
+It's gonna be needed.
+
+
+Thanks for trying it out, and have fun! :)
+
+
+[Uninstall]
+
+1. Remove the scripts toolbar + files from the same install directory.
+
+2. Go to "X:\Users\<UserName>\AppData\Local\Autodesk\3dsMax\<ReleaseNumber> - 64bit\ENU\scripts\" and delete the "MaxBoy" folder
+
+3. If you want to do a "full uninstall" and remove the macroscript categories, go to: "X:\Users\<UserName>\AppData\Local\Autodesk\3dsMax\<ReleaseNumber> - 64bit\ENU\usermacros", and delete the files "MaxBoy-PipeBoyTool.mcr" and "MaxBoy-ToolBoyTool.mcr"

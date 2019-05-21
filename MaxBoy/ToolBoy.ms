@@ -1,10 +1,11 @@
 /*/////////////////////////////////////////
 Toolboy is a collection of neatly packed 
-macros and tools to speed up general tasks!
+macros and tools to speed up general tasks.
 /////////////////////////////////////////*/
 
+--Start ToolBoy--
 (
-rollout ToolBoy "ToolBoy" width:190 height:70
+rollout ToolBoy "ToolBoy"
 (
 	--Global settings
 	global s_usePrefix = false
@@ -17,7 +18,7 @@ rollout ToolBoy "ToolBoy" width:190 height:70
 
 	subRollout UI_Base width:190 height:70 pos:[-1,-1]
 
-	include "ToolBoyFunctions.ms"
+	include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
 	
 	rollout UI_Settings "General"
 	(
@@ -45,7 +46,7 @@ rollout ToolBoy "ToolBoy" width:190 height:70
 		)
 
 		--Handle window scaling when rolled up
-		on UI_Settings rolledUp State do (resizeWindow State UI_Settings)
+		on UI_Settings rolledUp State do (resizeWindow ToolBoy State UI_Settings)
 
 		on usePrefix changed State do
 		(
@@ -292,7 +293,7 @@ rollout ToolBoy "ToolBoy" width:190 height:70
 		)
 
 		--Handle window scaling when rolled up
-		on UI_Rigging rolledUp State do (resizeWindow State UI_Rigging)
+		on UI_Rigging rolledUp State do (resizeWindow ToolBoy State UI_Rigging)
 
 		on testSort pressed do
 		(
@@ -675,8 +676,8 @@ rollout ToolBoy "ToolBoy" width:190 height:70
 			pickbutton InstanceRef "Instance Object" width:150 align:#left
 		)
 
-		on UI_Mesh rolledUp State do (resizeWindow State UI_Mesh)
-
+		on UI_Mesh rolledUp State do (resizeWindow ToolBoy State UI_Mesh)
+		
 		on ResetXforms pressed do
 		(
 			clearListener()
@@ -865,5 +866,5 @@ rollout ToolBoy "ToolBoy" width:190 height:70
 )
 
 try(destroyDialog ToolBoy)catch()
-createDialog ToolBoy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,200]
+createDialog ToolBoy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,200] width:190 height:70
 )

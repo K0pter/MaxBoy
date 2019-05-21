@@ -9,17 +9,17 @@ fn printc tString =
 )
 
 --Window resize function for rollouts
-fn resizeWindow tState tRollout =
+fn resizeWindow tTarget tState tRollout =
 (
     if (tState == true) then
     (
 		UI_Base.height += tRollout.height
-		ToolBoy.height += tRollout.height
+		tTarget.height += tRollout.height
     )
     else
     (
 		UI_Base.height -= tRollout.height
-		ToolBoy.height -= tRollout.height
+		tTarget.height -= tRollout.height
     )
 )
 
