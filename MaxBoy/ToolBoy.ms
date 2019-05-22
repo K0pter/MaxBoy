@@ -560,6 +560,8 @@ rollout ToolBoy "ToolBoy"
 			--Moved to generic function for multi-usage
 			local scaleArray = (selection as array)
 
+			if (selection.count == 0) do (return())
+
 			fn_resetScales(scaleArray)
 		)
 		
@@ -572,6 +574,8 @@ rollout ToolBoy "ToolBoy"
 			(
 				local tempArray = collectObjects 1
 				
+				if (tempArray == undefined) do (return())
+
 				--print("List is ready!")
 				print("...")
 
@@ -622,6 +626,8 @@ rollout ToolBoy "ToolBoy"
 			(
 				local tempArray = collectObjects 1
 				
+				if (tempArray == undefined) do (return())
+
 				--print("List is ready!")
 				print("...")
 
@@ -666,7 +672,7 @@ rollout ToolBoy "ToolBoy"
 		group "Mesh Commands"
 		(
 			button ResetXforms "Reset Xforms" width:150 align:#left
-			button RefreshSkinnedMesh "Refresh skinned mesh" width:150 align:#left
+			--button RefreshSkinnedMesh "Refresh skinned mesh" width:150 align:#left
 		)
 
 		group "Instancing"
