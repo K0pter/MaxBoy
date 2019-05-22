@@ -265,7 +265,7 @@ rollout ToolBoy "ToolBoy"
 			checkbox AddOrientation "Rotation Constraint" checked:true toolTip:"Add rotation constraint."
 			checkbox AddPosition "Position Constraint" toolTip:"Add position constraint."
 			pickButton ConstraintTarget "Target Root" pos:[14,112]
-			edittext ctTarget "" pos:[90,114] fieldWidth:70 height:20 readOnly:#true
+			edittext ctTarget "" pos:[90,114] fieldWidth:70 height:20 readOnly:true
 		)
 
 		group "Controllers"
@@ -848,17 +848,16 @@ rollout ToolBoy "ToolBoy"
 	(
 		print("Hey, it's ToolBoy!")
 
-		--addSubRollout UI_Base ToolBoy
-		addSubRollout UI_Base UI_Settings
-		addSubRollout UI_Base UI_Rigging
-		addSubRollout UI_Base UI_Mesh
-
 		global rol_s = UI_Settings
 		global rol_r = UI_Rigging
 		global rol_m = UI_Mesh
 
+		addSubRollout UI_Base rol_s
+		addSubRollout UI_Base rol_r
+		addSubRollout UI_Base rol_m
+
 		rol_s.open = false
-		rol_r.open = true
+		rol_r.open = false
 		rol_m.open = false
 	)
 	
