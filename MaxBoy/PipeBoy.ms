@@ -14,7 +14,7 @@ global PipeBoySettings --Pipeboy settings file
 global PBS --Pipeboy settings .ini file handle
 
 global UnlinkFromParent
-global ZeroRootToOrigin
+global ZeroPivotToOrigin
 
 global gName = (getFilenameFile  maxFileName)
 global exportGroup = #()
@@ -230,7 +230,7 @@ rollout PipeBoy "PipeBoy"
 
 		animate off in coordsys local
 		(
-			obj.objectoffsetrot *= (_rotation as quat)
+			obj.objectoffsetrot *= (RotValInv as quat)
 		)
 	)
 
@@ -278,7 +278,7 @@ rollout PipeBoy "PipeBoy"
 			)
 		)
 		
-		case s_Engine	of
+		case s_Engine of
 		(
 			1:
 			(
@@ -304,8 +304,9 @@ rollout PipeBoy "PipeBoy"
 		
 		local p_subPath = replace (maxFilePath as string) 1 (p_length) ""
 		
-		--Check if not animation asset type
-		if (ro_a.IsType.selection != 4) then
+		--Check if not animation asset type //DEPRECATED
+		/*
+		if (currentAssetSelected != 2) then
 		(
 			local p_filenameFolderPath = ("\\" + gName + "\\")
 		)
@@ -313,6 +314,7 @@ rollout PipeBoy "PipeBoy"
 		(
 			local p_filenameFolderPath = ""
 		)
+		*/
 		
 		--Build final path to file export locatio
 		if (s_ImportFromRaw == false) then
@@ -346,8 +348,14 @@ rollout PipeBoy "PipeBoy"
 	fn PrepareMeshForExport group_mesh generate_lods lods_amount =
 	(
 		RefreshRollouts()
+
+		if (currentAssetSelected != 1) do
+		(
+			MessageBox "Current asset type is not set to Geometry!" title:"Wrong asset type!"
+			return()
+		)
 		
-		if ($ == undefined and group_mesh == false) do
+		if (selection.count == 0 and group_mesh == false) do
 		(
 			clearListener()
 			print("Nothing selected, quitting...")
@@ -361,7 +369,7 @@ rollout PipeBoy "PipeBoy"
 		free cleanGroup
 		free exportGroup
 		free GroupArray
-	
+
 		try
 		(
 			disableSceneRedraw()
@@ -390,19 +398,24 @@ rollout PipeBoy "PipeBoy"
 				select SafeCopies				
 				
 				if (s_MeshGroupPrefix == undefined) do (s_MeshGroupPrefix = "g_")
-					
-				if (group_mesh == true) then
-				(	
-					--Collect mesh groups in selection
-					for obj in SafeCopies do
+		
+				--Assume there are no mesh group objects in scene
+				local validGroupObjects = false
+
+				--Collect mesh groups in selection
+				for obj in SafeCopies do
+				(
+					if (matchPattern obj.name pattern:(s_MeshGroupPrefix + "*") == true) do
 					(
-						if (matchPattern obj.name pattern:(s_MeshGroupPrefix + "*") == true) do
-						(
-							printc("Found group object: " + obj.name + " - adding to array")
-							append GroupArray obj
-						)
+						printc("Found group object: " + obj.name + " - adding to array")
+						append GroupArray obj
+
+						validGroupObjects = true
 					)
-					
+				)
+
+				if (group_mesh == true and validGroupObjects == true) then
+				(	
 					--Process mesh groups
 					for g in GroupArray do
 					(
@@ -446,10 +459,11 @@ rollout PipeBoy "PipeBoy"
 						)
 
 						--Fix pivot
-						if (ZeroRootToOrigin == true) then
+						if (ZeroPivotToOrigin == true) then
 						(
 							in coordsys world CombinedMesh.objectOffsetPos = [0,0,0]
 							in coordsys world CombinedMesh.objectOffsetRot = (eulerangles 0 0 0)
+							(_rotation as quat)
 						)
 						else
 						(
@@ -476,15 +490,15 @@ rollout PipeBoy "PipeBoy"
 					--Regular export selection
 					local CombiningGroup = FilterForMeshes(selection)					
 					
-					for i=1 to CombiningGroup.count do
+					for i = 1 to CombiningGroup.count do
 					(
 						c = CombiningGroup[i]
 						
 						collapseStack c
 						convertTo c Editable_Poly
 						
-						local CurrentParent = parent
-						parent = undefined
+						local CurrentParent = c.parent
+						c.parent = undefined
 						
 						if (UnlinkFromParent == true) then 
 						(
@@ -492,7 +506,7 @@ rollout PipeBoy "PipeBoy"
 						) 
 						else 
 						(
-							if (CurrentParent == undefined) then	(c.parent = ExportParent) else (c.parent = CurrentParent)
+							if (CurrentParent == undefined) then (c.parent = ExportParent) else (c.parent = CurrentParent)
 						)
 						
 						RotatePivotOnlyEngine(c)
@@ -507,15 +521,29 @@ rollout PipeBoy "PipeBoy"
 		(
 			enableSceneRedraw()
 				
-			for o in cleanGroup do
+			if (cleanGroup != undefined) do
 			(
-				try(delete o)catch()
+				if (cleanGroup.count >= 1) do
+				(
+					for o in cleanGroup do
+					(
+						try(delete o)catch()
+					)
+				)
 			)
-			
-			for o in SafeCopies do
+
+			if (SafeCopies != undefined) do
 			(
-				try(delete o)catch()
+				if (SafeCopies.count >= 1) do
+				(
+					for o in SafeCopies do
+					(
+						try(delete o)catch()
+					)
+				)
 			)
+
+			delete ExportParent
 			
 			messageBox "Something went wrong!" title:"Error"
 			
@@ -617,6 +645,14 @@ rollout PipeBoy "PipeBoy"
 		on Export pressed do
 		(	
 			select $*
+
+			if (selection.count == 0) do (return())
+
+			if ((getFilenameFile  maxFileName) == "") do
+			(
+				MessageBox "Save scene first!" title:"Export error!"
+				return()
+			)
 			
 			if (ro_a == undefined) do (RefreshRollouts())
 
@@ -625,6 +661,14 @@ rollout PipeBoy "PipeBoy"
 		
 		on ExportSelection pressed do
 		(	
+			if (selection.count == 0) do (return())
+
+			if ((getFilenameFile  maxFileName) == "") do
+			(
+				MessageBox "Save scene first!" title:"Export error!"
+				return()
+			)
+
 			if (ro_a == undefined) do (RefreshRollouts())
 				
 			PrepareMeshForExport ro_a.meshGrouper.state ro_a.generateLods.state ro_a.lodsAmount
@@ -632,6 +676,12 @@ rollout PipeBoy "PipeBoy"
 		
 		on ExportAnimation pressed do
 		(
+			if ((getFilenameFile  maxFileName) == "") do
+			(
+				MessageBox "Save scene first!" title:"Export error!"
+				return()
+			)
+
 			clearSelection
 			disableSceneRedraw() 
 
@@ -680,7 +730,7 @@ rollout PipeBoy "PipeBoy"
     (		
 		group "Asset Settings"
 		(	
-			dropdownlist IsType "Asset Type" items:#("Architecture", "Prop", "Detail", "Animation", "Other") width:125
+			dropdownlist IsType "Asset Type" items:#("Geometry", "Animation") width:125
 			
 			checkbox meshGrouper "Mesh grouper" checked:true
 			checkbox generateLods "Generate lods" checked:false
@@ -709,7 +759,7 @@ rollout PipeBoy "PipeBoy"
     (		
 		group "General Settings"
 		(	
-			checkbox ZeroRoot "Zero Root" checked:false
+			checkbox ZeroPivot "Zero Pivot" checked:false
 			checkbox Unlink "Unlink" checked:false
 			checkbox PrintMessages "Print to log?" checked:PrintToConsole
 		)
@@ -724,9 +774,9 @@ rollout PipeBoy "PipeBoy"
 			UnlinkFromParent = newState
 		)
 		
-		on ZeroRoot changed newState do
+		on ZeroPivot changed newState do
 		(
-			ZeroRootToOrigin = newState
+			ZeroPivotToOrigin = newState
 		)
 
 		on UI_RolloutGroup_General rolledUp State do (resizeWindow PipeBoy State UI_RolloutGroup_General)
@@ -735,6 +785,7 @@ rollout PipeBoy "PipeBoy"
 		(
 			UI_RolloutGroup_General.open = false
 		)
+		
     )
 	
 	rollout UI_RolloutGroup_Project "Project Settings"

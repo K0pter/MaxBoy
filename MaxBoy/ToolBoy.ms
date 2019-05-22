@@ -286,7 +286,7 @@ rollout ToolBoy "ToolBoy"
 		    --spinner Cycles "Cycles" range:[0,1000,10] type:#integer width:100 align:#left toolTip:"Hierarchical, recursive scaling (Steps in hierarchiy)."
 		)
 
-		group "Controllers"
+		group "Motion Controllers"
 		(
 			button RegularController "Re-set Controllers" width:150 align:#left
 			button XrefController "Xref Controllers" width:150 align:#left
