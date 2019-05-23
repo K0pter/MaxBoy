@@ -13,6 +13,8 @@ rollout ToolBoy "ToolBoy"
 	global s_cPrefix = "c_"
 	global s_print = false
 
+	global PrintToConsole = true 
+
 	--Global arrays
 	global nodeList = #()
 
@@ -90,7 +92,7 @@ rollout ToolBoy "ToolBoy"
 
 		on GiveDummies pressed do
 		(
-			clearListener()
+			--clearListener()
 
 			if (selection.count == 0) do 
 			(
@@ -98,66 +100,90 @@ rollout ToolBoy "ToolBoy"
 				return()
 			)
 			
-			with redraw off 
+			with undo off
 			(
-				--Sort arrays to align with hierarchy indexes
-				local tempArray = sortToHierarchy(selection as array)
-
-				if (tempArray == undefined) do (return())
-
-				local parentArray = getHierarchyIndex(tempArray)
-				local pointArray = #()
-
-				--Dummy creation
-				for i = 1 to tempArray.count do 
-				(	
-					o = tempArray[i]
-					
-					if (DummyInhScale.state == true) then
-					(
-						ps = getRelativeScale(o) / 2
-					)
-					else
-					(
-						ps = DummyScale.value
-					)
-					
-
-					p = Point Size: (ps) 
-					p.transform = o.transform
-					p.scale = [1,1,1]
-					p.name = ("point:" + o.name)
-
-					p.cross = DummyType.selection[1]
-					p.box = DummyType.selection[2]
-					p.centermarker = DummyType.selection[3]
-					p.axistripod = DummyType.selection[4]
-
-					append pointArray p
-				)
-
-				print("[Parent array]")
-				print(parentArray)
-				print("[Point array]")
-				print(pointArray)
-
-				--Parenting
-				if (DummyInhParent.state == true) do 
+				with redraw off 
 				(
-					for i = 1 to pointArray.count do
-					(
-						local p = pointArray[i] --Point
-						local pr = (parentArray[i] - 1) --Parent ref (get one step up in hierarchy)
+					--Sort arrays to align with hierarchy indexes
+					local tempArray = (selection as array)
 
-						if (pr != 0) then
+					if (tempArray == undefined) do (return())
+
+
+					--Copy nodes to make controllers for
+					local nodeCopies = #()
+					CopyNodes tempArray #copy &nodeCopies
+
+					--Create container for node hierarchy indexes
+					local indexArray = #()
+
+					--Sort controller array to make isolating the parents easier
+					sortToHierarchy &nodeCopies &indexArray
+
+					--Create local node to parent controllers to
+					local nodeParent = Point Size:20 name:"PointParent" box:true cross:true
+
+					for i = 1 to indexArray.count do 
+					(
+						--If parent isn't amongst the copies, parent to dummy parent
+						local localParent = findItem nodeCopies nodeCopies[i].parent					
+
+						--If I'm at the top or have no other parent amongst the copies, copy to dummy
+						if (indexArray[i] == 1 or localParent == 0) do
 						(
-							p.parent = pointArray[pr]
-						)
-						else
-						(
-							p.parent = undefined
+							nodeCopies[i].parent = nodeParent
 						)
 					)
+
+					local pointArray = #()
+
+					--Dummy creation
+					for i = 1 to nodeCopies.count do 
+					(	
+						local o = nodeCopies[i]
+
+						if (o != undefined) then
+						(
+							if (DummyInhScale.state == true) then
+							(
+								ps = getRelativeScale(o) / 2
+							)
+							else
+							(
+								ps = DummyScale.value
+							)
+
+							p = Point Size: (ps) 
+							p.transform = o.transform
+							p.scale = [1,1,1]
+							p.name = ("point:" + o.name)
+
+							p.wirecolor = o.wirecolor
+
+							p.cross = DummyType.selection[1]
+							p.box = DummyType.selection[2]
+							p.centermarker = DummyType.selection[3]
+							p.axistripod = DummyType.selection[4]
+
+							if (DummyInhParent.checked == true) then
+							(
+								p.parent = o.parent
+
+								for tChild in o.children do (tChild.parent = p)
+							)
+							else
+							(
+								p.parent = undefined
+							)
+
+							append pointArray p
+						)
+					)
+
+					if (DummyInhParent.checked == false) do (delete nodeParent)
+
+					--Delete hierarchy reference objects
+					for obj in nodeCopies do (delete obj)
 				)
 			)
 		)
@@ -459,6 +485,7 @@ rollout ToolBoy "ToolBoy"
 							)
 						)
 
+						cnt.wirecolor = o.wirecolor
 						cnt.parent = o.parent
 
 						for tChild in o.children do (tChild.parent = cnt)

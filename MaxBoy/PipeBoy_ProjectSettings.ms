@@ -162,7 +162,7 @@ fn LoadSettings =
 )
 
 --Main UI window--
-rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:400
+rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:330
 (
 	group "Project"
 	(
@@ -178,14 +178,14 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:400
 		
 		edittext ui_projectRoot "Project path:" text:("D:\\Unity\\Your\\ProjectRoot\\") width: 275 align:#left tooltip:"Path to project's root directory"
 		edittext ui_projectSource "Project Source:" text:("D:\\Unity\\Your\\ProjectSource\\") width: 275 align:#left tooltip:"Path to project's 'source/ raw' directory"
-		edittext ui_projectAsset "Asset folder:" text:("") width: 275 align:#left tooltip:"Extra path directory for asset folder"
+		--edittext ui_projectAsset "Asset folder:" text:("") width: 275 align:#left tooltip:"Extra path directory for asset folder"
 		checkbox ui_ImportFromRaw "Import from source setup" tooltip:"Whether or not to export to external source location or to mirrored project folder."
 	)
 	
 	group "Geometry"
 	(
 		edittext ui_MeshGroupPrefix "Mesh group prefix:" text:"g_" width: 200 align:#left
-		dropdownlist ui_ForwardAxis "Axis Forward" items:#("(+) X-Forward", "(-) X-Forward", "(+) Y-Forward", "(-) Y-Forward") width:125
+		--dropdownlist ui_ForwardAxis "Axis Forward" items:#("(+) X-Forward", "(-) X-Forward", "(+) Y-Forward", "(-) Y-Forward") width:125
 	)
 	
 	group "Animation"
@@ -203,11 +203,11 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:400
 
 		ui_projectRoot.text 	 = LS.p_projectRoot
 		ui_projectSource.text 	 = LS.p_projectSource
-		ui_projectAsset.text 	 = LS.p_projectAsset
+		--ui_projectAsset.text 	 = LS.p_projectAsset
 		
 		ui_Engine.selection 	 = LS.s_Engine
 		ui_ImportFromRaw.state 	 = LS.s_ImportFromRaw
-		ui_ForwardAxis.selection = LS.s_ForwardAxis
+		--ui_ForwardAxis.selection = LS.s_ForwardAxis
 		ui_MeshGroupPrefix.text  = LS.s_MeshGroupPrefix
 		
 		ui_BonePrefix.text 		 = LS.s_BonePrefix
@@ -232,11 +232,11 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:400
 		--Go through and check all settings in comparison to saved settings
 		fChanged ui_projectRoot.text 	  "p_projectRoot" string
 		fChanged ui_projectSource.text    "p_projectSource" string
-		fChanged ui_projectAsset.text     "p_projectAsset" string
+		--fChanged ui_projectAsset.text     "p_projectAsset" string
 		
 		fChanged ui_Engine.selection 	  "s_Engine" Integer
 		fChanged ui_ImportFromRaw.state   "s_ImportFromRaw" booleanClass
-		fChanged ui_ForwardAxis.selection "s_ForwardAxis" Integer
+		--fChanged ui_ForwardAxis.selection "s_ForwardAxis" Integer
 		fChanged ui_MeshGroupPrefix.text  "s_MeshGroupPrefix" string
 		
 		fChanged ui_BonePrefix.text 	  "s_BonePrefix" string
@@ -356,10 +356,12 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:400
 		LS.p_projectSource = newString
 	)
 
+	/*Removed for now
 	on ui_projectAsset changed newString do
 	(
 		LS.p_projectAsset = newString
 	)
+	*/
 
 	on ui_ImportFromRaw changed newState do
 	(
@@ -372,10 +374,12 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:400
 		LS.s_MeshGroupPrefix = newString
 	)
 
+	/*Removed for now
 	on ui_ForwardAxis changed newAxis do
 	(
 		LS.s_ForwardAxis = newAxis
 	)
+	*/
 
 	--Animation
 	on ui_BonePrefix changed newString do

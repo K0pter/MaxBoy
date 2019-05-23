@@ -33,12 +33,6 @@ fn getScriptLocation =
 	return FilteredPath
 )
 */
-	
-fn printc str = 
-(
-	--Custom print funciton for visual debug
-	if (PrintToConsole == true) do (try(print(str))catch())
-)
 
 fn FreezeTransforms obj =
 (
@@ -192,45 +186,30 @@ rollout PipeBoy "PipeBoy"
 		2 = - X-Forward
 		3 = Y-Forward
 		4 = - Y-Forward
-		
+		*/
+
+		local RotValInv --Set up local rotation variable
+
 		case s_Engine of
 		(
+			--local rotValInv = case s_ForwardAxis of
+
 			1:
 			(
-				local rotValInv = case s_ForwardAxis of
-				(
-					1: inverse(eulerToQuat(eulerAngles 90 0 90))
-					2: inverse(eulerToQuat(eulerAngles 90 0 -90))
-					3: inverse(eulerToQuat(eulerAngles 90 0 180))
-					4: inverse(eulerToQuat(eulerAngles 90 0 0))
-				)
+				RotValInv = EulerAngles 90 0 90
 			)
 			
 			2:
 			(
-				local rotValInv = case s_ForwardAxis of
-				(
-					1: inverse(eulerToQuat(eulerAngles 90 0 90))
-					2: inverse(eulerToQuat(eulerAngles 90 0 -90))
-					3: inverse(eulerToQuat(eulerAngles 90 0 180))
-					4: inverse(eulerToQuat(eulerAngles 90 0 0))
-				)
+				RotValInv = EulerAngles 0 0 0
 			)
 		)
-		*/
 		
-		--rotValInv = inverse(eulerToQuat(eulerAngles -90 0 90))
-		--RotValInv = eulerToQuat(eulerAngles 90 0 90)
-		--in coordsys world obj.objectOffsetRot = RotValInv
-		
-		--in coordsys local rotate TempPivot (angleaxis 90 [1,0,0])
-		--in coordsys local rotate TempPivot (angleaxis 90 [0,1,0])
-		
-		local RotValInv = inverse (EulerAngles 90 0 90 as quat)
-
 		animate off in coordsys local
 		(
-			obj.objectoffsetrot *= (RotValInv as quat)
+			--obj.objectoffsetrot *= (RotValInv as quat)
+			obj.rotation *= inverse (RotValInv as quat)
+			obj.objectoffsetrot *= inverse(RotValInv as quat)
 		)
 	)
 
@@ -278,6 +257,7 @@ rollout PipeBoy "PipeBoy"
 			)
 		)
 		
+		/*DEPRECATED (Due to paths supposed to be 100% mirrored from root without question.) 
 		case s_Engine of
 		(
 			1:
@@ -294,6 +274,7 @@ rollout PipeBoy "PipeBoy"
 				local p_EngineSpecificAssetPath = ("Content\\")
 			)
 		)
+		*/
 		
 		--Set export params
 		FBXExporterSetParam "PushSettings"
@@ -319,8 +300,8 @@ rollout PipeBoy "PipeBoy"
 		--Build final path to file export locatio
 		if (s_ImportFromRaw == false) then
 		(
-			local p_fileExportPath = (p_ProjectRoot + p_EngineSpecificAssetPath + p_projectAsset + p_subPath)
-			--Removed due to not really making sense
+			local p_fileExportPath = pathConfig.appendPath p_ProjectRoot p_subPath
+			--DEPRECATED PATH
 			--local p_fileExportPath = (p_ProjectRoot + p_EngineSpecificAssetPath + p_projectAsset + p_subPath + p_filenameFolderPath)
 		)
 		else
@@ -357,7 +338,7 @@ rollout PipeBoy "PipeBoy"
 		
 		if (selection.count == 0 and group_mesh == false) do
 		(
-			clearListener()
+			--clearListener()
 			print("Nothing selected, quitting...")
 			return()
 		)
@@ -376,7 +357,7 @@ rollout PipeBoy "PipeBoy"
 			
 			with undo off
 			(
-				clearlistener()
+				--clearlistener()
 
 				--Create root export object for axis conversion
 				local ExportParent = Point Size:500 Name:"ExportParent"
