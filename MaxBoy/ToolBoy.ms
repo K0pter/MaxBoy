@@ -1,5 +1,5 @@
 /*/////////////////////////////////////////
-Toolboy is a collection of neatly packed 
+Toolboy is a collection of neatly packed
 macros and tools to speed up general tasks.
 /////////////////////////////////////////*/
 
@@ -13,7 +13,7 @@ rollout ToolBoy "ToolBoy"
 	global s_cPrefix = "c_"
 	global s_print = false
 
-	global PrintToConsole = true 
+	global PrintToConsole = false
 
 	--Global arrays
 	global nodeList = #()
@@ -21,7 +21,7 @@ rollout ToolBoy "ToolBoy"
 	subRollout UI_Base width:190 height:70 pos:[-1,-1]
 
 	include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
-	
+
 	rollout UI_Settings "General"
 	(
 		group ""
@@ -29,7 +29,7 @@ rollout ToolBoy "ToolBoy"
 			checkbox usePrefix "Use Prefix" toolTip:"Use prefix to select objects?"
 			edittext bPrefix "Bone prefix:" text:"b_" width:125
 			edittext cPrefix "Controller prefix:" text:"c_" width:125
-			button SelectChildren "Select children"	
+			button SelectChildren "Select children"
 		)
 
 		group "Misc"
@@ -76,11 +76,11 @@ rollout ToolBoy "ToolBoy"
 			if selection.count == 1 then
 			(
 				selectionArray = #($)
-				
+
 				select(getChildren())
 
 				join selectionArray selection
-				
+
 				select selectionArray
 				Free selectionArray
 			)
@@ -94,15 +94,15 @@ rollout ToolBoy "ToolBoy"
 		(
 			--clearListener()
 
-			if (selection.count == 0) do 
+			if (selection.count == 0) do
 			(
 				messageBox "Nothing selected, quitting." title:"Error!"
 				return()
 			)
-			
+
 			with undo off
 			(
-				with redraw off 
+				with redraw off
 				(
 					--Sort arrays to align with hierarchy indexes
 					local tempArray = (selection as array)
@@ -123,10 +123,10 @@ rollout ToolBoy "ToolBoy"
 					--Create local node to parent controllers to
 					local nodeParent = Point Size:20 name:"PointParent" box:true cross:true
 
-					for i = 1 to indexArray.count do 
+					for i = 1 to indexArray.count do
 					(
 						--If parent isn't amongst the copies, parent to dummy parent
-						local localParent = findItem nodeCopies nodeCopies[i].parent					
+						local localParent = findItem nodeCopies nodeCopies[i].parent
 
 						--If I'm at the top or have no other parent amongst the copies, copy to dummy
 						if (indexArray[i] == 1 or localParent == 0) do
@@ -138,8 +138,8 @@ rollout ToolBoy "ToolBoy"
 					local pointArray = #()
 
 					--Dummy creation
-					for i = 1 to nodeCopies.count do 
-					(	
+					for i = 1 to nodeCopies.count do
+					(
 						local o = nodeCopies[i]
 
 						if (o != undefined) then
@@ -153,7 +153,7 @@ rollout ToolBoy "ToolBoy"
 								ps = DummyScale.value
 							)
 
-							p = Point Size: (ps) 
+							p = Point Size: (ps)
 							p.transform = o.transform
 							p.scale = [1,1,1]
 							p.name = ("point:" + o.name)
@@ -257,7 +257,7 @@ rollout ToolBoy "ToolBoy"
 							local n = sel[i]
 							append selectedNodes bn[n]
 						)
-						
+
 						if (selectedNodes.count > 0) do (fn_resetScales(selectedNodes))
 
 						bs_ns.items = (for o in bn collect (o.scale as string))
@@ -268,9 +268,9 @@ rollout ToolBoy "ToolBoy"
 						fn_resetScales(bn)
 
 						bs_ns.items = (for o in bn collect (o.scale as string))
-					)				
+					)
 				)
-				
+
 				CreateDialog dumpMessage
 				--Has to be placed after rollout creation!
 				Join dumpMessage.bn bNodes
@@ -285,7 +285,6 @@ rollout ToolBoy "ToolBoy"
 	(
 		group "Constraints"
 		(
-			--button testSort "Test Sort"
 			button AddConstraints "Add Constraints" width:150 align:#left toolTip:"Add constraints based on proximity-based binding, for selected object(s)."
 			checkbox OrientationRelative "Relative Orientation" checked:true toolTip:"Should the rotation constraint be relative or absolute"
 			checkbox AddOrientation "Rotation Constraint" checked:true toolTip:"Add rotation constraint."
@@ -299,13 +298,13 @@ rollout ToolBoy "ToolBoy"
 			button AddControllers "Add Rig Controllers" width:150 align:#left
 			checkbox BoneMode "Bone mode" checked:true toolTip:"Use this for prefix-based auto-renaming on generated controllers."
 			checkbox OrientToChild "Orient towards child" checked:true toolTip:"Should the controller point towards the next child or be oriented like the reference bone?"
-			
+
 			dropdownlist CntrlType "Shape" items:#("Circle", "Box") selection:2
-			checkbox CntrlInhScale "Inherit scale"
+			checkbox CntrlInhScale "Inherit scale" toolTip:"Scales the controller's width based on the objects bounding box."
 			spinner CntrlScale "Radius" range:[0,1000,4] width:100 align:#left
 		)
 
-		group "Scale" 
+		group "Scale"
 		(
 			button ResetScales "Re-set Scales" width:150 align:#left
 		    --New function avoids extra cycle passes!
@@ -321,30 +320,16 @@ rollout ToolBoy "ToolBoy"
 		--Handle window scaling when rolled up
 		on UI_Rigging rolledUp State do (resizeWindow ToolBoy State UI_Rigging)
 
-		on testSort pressed do
-		(
-			local shuffle = #()
-			local aba = (Selection as array)
-
-			sortToHierarchy &aba &shuffle
-
-			--getHierarchy(tArray)
-
-			print(aba)
-			print(shuffle)
-			--getHierarchyIndex(selection as array)
-		)
-
 		on AddControllers pressed  do
-		(	
+		(
 			clearListener()
 			print("Generating controllers!")
-			
-			with redraw off 
+
+			with undo off with redraw off
 			(
 				local collectionArray = collectObjects s_bPrefix
 
-				if (collectionArray == undefined) then 
+				if (collectionArray == undefined) then
 				(
 					messageBox "Empty selection, exiting controller creation..." title:"Error!"
 					print("Exiting controller creation...")
@@ -373,10 +358,10 @@ rollout ToolBoy "ToolBoy"
 				--Create local node to parent controllers to
 				local cntrlParent = Point Size:20 name:"CntrlParent"
 
-				for i = 1 to indexArray.count do 
+				for i = 1 to indexArray.count do
 				(
 					--If parent isn't amongst the copies, parent to dummy parent
-					local localParent = findItem controllerCopies controllerCopies[i].parent					
+					local localParent = findItem controllerCopies controllerCopies[i].parent
 
 					--If I'm at the top or have no other parent amongst the copies, copy to dummy
 					if (indexArray[i] == 1 or localParent == 0) do
@@ -385,10 +370,10 @@ rollout ToolBoy "ToolBoy"
 					)
 				)
 
-				local controllerArray = #()			
+				local controllerArray = #()
 
-				for i = 1 to controllerCopies.count do 
-				(	
+				for i = 1 to controllerCopies.count do
+				(
 					local o = controllerCopies[i]
 
 					if (o != undefined) then
@@ -401,7 +386,7 @@ rollout ToolBoy "ToolBoy"
 							--Create controller with settings
 							local rad = 20
 
-							if (CntrlInhScale.state == true) then
+							if (CntrlInhScale.checked == true) then
 							(
 								rad = getRelativeScale(o) / 3
 							)
@@ -409,7 +394,7 @@ rollout ToolBoy "ToolBoy"
 							(
 								rad = CntrlScale.value
 							)
-							
+
 							cnt = circle radius: rad
 							cnt.render_thickness = (rad / 8)
 
@@ -440,6 +425,7 @@ rollout ToolBoy "ToolBoy"
 
 							local c = storedLeader --Child target
 							local b_height = 5
+							local b_width = CntrlScale.value
 
 							if (c == undefined) then
 							(
@@ -450,12 +436,16 @@ rollout ToolBoy "ToolBoy"
 								b_height = distance o c
 							)
 
-							local b_width = CntrlScale.value
+							if (CntrlInhScale.checked == true) do
+							(
+								b_width = 2 + (b_height / 8)
+							)
+
 							cnt = Box height:b_height width:b_width length:b_width
 
 							cnt.transform = o.transform
 							cnt.scale = [1,1,1]
-							
+
 							--in coordsys local rotate cnt (EulerAngles 0 90 0)
 							RotatePivotOnly cnt (eulerangles 0 90 0)
 						)
@@ -474,11 +464,11 @@ rollout ToolBoy "ToolBoy"
 								cnt.rotation.controller = lookAtChild
 
 								local storedTransform = cnt.transform
-					
+
 								cnt.Transform.controller = prs()
 								cnt.Position.controller = Position_XYZ()
 								cnt.Rotation.controller = Euler_XYZ()
-					
+
 								cnt.transform = storedTransform
 
 								delete upNode
@@ -492,8 +482,9 @@ rollout ToolBoy "ToolBoy"
 
 						append controllerArray cnt
 
-						--Naming (remove "001" from copies naming convention)
-						local tempName = replace (o.name) (o.name.count - 3) 3 ""
+						--Naming (remove "001" from copies naming convention) DEPRECATED
+						--local tempName = replace (o.name) (o.name.count - 3) 3 ""
+						local tempName = o.name
 
 						--Add bone prefix if using bone mode
 						if (BoneMode.checked == true) do
@@ -515,14 +506,24 @@ rollout ToolBoy "ToolBoy"
 
 				clearSelection
 				select controllerArray
-			)	
+			)
+
+			gc()
 		)
-		
+
 		on AddConstraints pressed  do
-		(	
+		(
 			--Get object selection for action
 			local _BoneArray = #()
 			local _ControllerArray = #()
+
+			if (IsValidNode ConstraintTarget.object == false) do
+			(
+				messageBox "Target root object is undefined or has bad node! Re-pick the root node and try again." title:"Error"
+				ConstraintTarget.object = undefined
+				ctTarget.text = "!Bad Node!"
+				return()
+			)
 
 			if (s_usePrefix == true) then
 			(
@@ -534,7 +535,7 @@ rollout ToolBoy "ToolBoy"
 				if (selection.count != 0) then
 				(
 					_ControllerArray = (selection as array)
-					_BoneArray = getChildren(ConstraintTarget.object)	
+					_BoneArray = getChildren(ConstraintTarget.object)
 				)
 				else
 				(
@@ -542,18 +543,18 @@ rollout ToolBoy "ToolBoy"
 					return()
 				)
 			)
-			
+
 			--format "Ba: %; \n" _BoneArray
 			--format "Ca: %; \n" _ControllerArray
-			
-			for i = 1 to _ControllerArray.count do 
-			(	
+
+			for i = 1 to _ControllerArray.count do
+			(
 				oA = _ControllerArray[i]
-				
+
 				for j = 1 to _BoneArray.count do
 				(
 					oB = _BoneArray[j]
-					
+
 					if (distance oA.position oB.position < 0.01) do
 					(
 						--print("Constraining: " + oA.name + " to " + oB.name)
@@ -561,7 +562,7 @@ rollout ToolBoy "ToolBoy"
 						(
 							oB.rotation.controller = Orientation_Constraint ()
 							oB.rotation.controller.appendTarget oA 100
-							
+
 							if (OrientationRelative.state == true) do
 							(
 								oB.rotation.controller.relative = on
@@ -569,7 +570,7 @@ rollout ToolBoy "ToolBoy"
 
 							print("Orientation constrained [" + oB.name + "] to [" + oA.name + "]")
 						)
-						
+
 						if (AddPosition.state == true) do
 						(
 							oB.position.controller = Position_Constraint ()
@@ -587,49 +588,47 @@ rollout ToolBoy "ToolBoy"
 			--Moved to generic function for multi-usage
 			local scaleArray = (selection as array)
 
-			if (selection.count == 0) do (return())
-
 			fn_resetScales(scaleArray)
 		)
-		
+
 		on RegularController pressed do
 		(
 			clearListener()
 			print("Starting operation!")
-			
-			with redraw off 
+
+			with redraw off
 			(
 				local tempArray = collectObjects 1
-				
+
 				if (tempArray == undefined) do (return())
 
 				--print("List is ready!")
 				print("...")
 
 				clearSelection()
-				
-				--macros.run "Track View" "LaunchDopeSheetEditor"	
-				
-				for i=1 to tempArray.count do 
-				(	
+
+				--macros.run "Track View" "LaunchDopeSheetEditor"
+
+				for i=1 to tempArray.count do
+				(
 					currentObject = tempArray[i]
-					
+
 					if (currentObject != undefined) then
 					(
 						--select currentObject
 						--print("Applying Xref to: " + currentObject.name as string)
 						--print($.Transform.controller)
-						
+
 						boob = Point Size:5
 						boob.transform = currentObject.transform
-						
+
 						currentObject.Transform.controller = prs()
 						currentObject.Position.controller = Position_XYZ()
 						currentObject.Rotation.controller = Euler_XYZ()
-						
+
 						currentObject.transform = boob.transform
 						delete boob
-						
+
 						continue
 					)
 					else
@@ -638,9 +637,9 @@ rollout ToolBoy "ToolBoy"
 					)
 				)
 			)
-			
+
 			print("Done!")
-			
+
 			redrawViews()
 		)
 
@@ -648,30 +647,30 @@ rollout ToolBoy "ToolBoy"
 		(
 			clearListener()
 			print("Starting operation!")
-			
-			with redraw off 
+
+			with redraw off
 			(
 				local tempArray = collectObjects 1
-				
+
 				if (tempArray == undefined) do (return())
 
 				--print("List is ready!")
 				print("...")
 
 				clearSelection()
-				
-				--macros.run "Track View" "LaunchDopeSheetEditor"	
-				
-				for i=1 to tempArray.count do 
-				(	
+
+				--macros.run "Track View" "LaunchDopeSheetEditor"
+
+				for i=1 to tempArray.count do
+				(
 					currentObject = tempArray[i]
-					
+
 					if (currentObject != undefined) then
 					(
 						--select currentObject
 						--print("Applying Xref to: " + currentObject.name as string)
 						--print($.Transform.controller)
-						
+
 						currentObject.Transform.controller = XRef_Controller ()
 						continue
 					)
@@ -681,9 +680,9 @@ rollout ToolBoy "ToolBoy"
 					)
 				)
 			)
-			
+
 			print("Done!")
-			
+
 			redrawViews()
 		)
 
@@ -693,7 +692,7 @@ rollout ToolBoy "ToolBoy"
 			ctTarget.text = newTarget.name
 		)
 	)
-	
+
 	rollout UI_Mesh "Mesh"
 	(
 		group "Mesh Commands"
@@ -710,17 +709,17 @@ rollout ToolBoy "ToolBoy"
 		)
 
 		on UI_Mesh rolledUp State do (resizeWindow ToolBoy State UI_Mesh)
-		
+
 		on ResetXforms pressed do
 		(
 			clearListener()
 			print("Resetting Xforms!")
 
 			local tempParents = #()
-			local tempTransforms = #()		
+			local tempTransforms = #()
 			local tempArray = collectObjects 1
 
-			with redraw off 
+			with redraw off
 			(
 				if (selection.count != 0) then
 				(
@@ -729,33 +728,33 @@ rollout ToolBoy "ToolBoy"
 						for i = 1 to tempArray.count do
 						(
 							local o = tempArray[i]
-							
-							case j of 
+
+							case j of
 							(
 								1:
 								(
 									--print("1...")
-									
+
 									append tempParents o.parent
 									o.parent = undefined
-									
+
 									break
 								)
-								
+
 								2:
 								(
 									--print("2...")
-									
+
 									tempDummy = Point Size:8
 									tempDummy.rotation = in coordsys world o.rotation
 									tempDummy.position = o.position
 
 									--Don't over-rotate!
 									--in coordsys local tempDummy.rotation.Y_rotation += 180
-									
+
 									tempDummy.name = ("point:" + o.name)
-									
-									append tempTransforms tempDummy 
+
+									append tempTransforms tempDummy
 
 									break
 								)
@@ -766,11 +765,11 @@ rollout ToolBoy "ToolBoy"
 
 									ResetXform o
 									collapseStack o
-									convertTo o Editable_Poly 
-									
+									convertTo o Editable_Poly
+
 									break
 								)
-					
+
 								4:
 								(
 									--print("4...")
@@ -778,37 +777,37 @@ rollout ToolBoy "ToolBoy"
 									RotatePivotOnly o tempTransforms[i].rotation
 									o.transform = matrix3 1
 									o.rotation = eulerangles 0 0 0
-									
+
 									o.rotation = tempTransforms[i].rotation
 									o.position = tempTransforms[i].position
-									
+
 									break
 								)
-								
+
 								5:
 								(
 									--print("5...")
-									
+
 									o.parent = tempParents[i]
-									
+
 									break
 								)
-								
+
 								6:
 								(
 									--print("6...")
-									
+
 									if (tempTransforms[i] != undefined) do
 									(
 										delete tempTransforms[i]
 									)
-									
+
 									break
 								)
 							)
-						)					
+						)
 					)
-					
+
 					print("Done with operation!")
 				)
 				else
@@ -824,7 +823,7 @@ rollout ToolBoy "ToolBoy"
 		on RefreshSkinnedMesh pressed do
 		(
 			local MeshesToRefresh = #()
-			
+
 			for o in (selection as array) do
 			(
 				if (classOf o.modifiers[1] == Skin) do
@@ -832,45 +831,45 @@ rollout ToolBoy "ToolBoy"
 					if (isvalidnode o) do append MeshesToRefresh o
 				)
 			)
-			
+
 			for o in MeshesToRefresh do
 			(
 				print("Toggled " + o.name + "'s skin visibility")
 				o.modifiers[1].enabled = false
 				o.modifiers[1].enabled = true
 			)
-			
+
 			free MeshesToRefresh
 		)
-		
+
 		on RefreshInstances pressed do
 		(
 			try
 			(
 				disableSceneRedraw()
-				
+
 				local filterSelection = selection as array
-								
+
 				for i = 1 to filterSelection.count do
 				(
 					--if (o.name == matchPattern(storedName*)) do
 					o = filterSelection[i]
-					
+
 					maxOps.cloneNodes InstanceRef.object cloneType:#instance newNodes:&newNode #nodialog
-					
+
 					newNode[1].parent = o.parent
 					newNode[1].transform = o.transform
-					
+
 					--print("Replacing: " + o.name + " with ref: " + InstanceRef.object.name)
-					
+
 					delete o
 				)
 			)
 			catch(enableSceneRedraw())
-				
+
 			enableSceneRedraw()
 		)
-		
+
 		on InstanceRef picked newRef do
 		(
 			InstanceRef.text = newRef.name
@@ -893,7 +892,7 @@ rollout ToolBoy "ToolBoy"
 		rol_r.open = false
 		rol_m.open = false
 	)
-	
+
 )
 
 try(destroyDialog ToolBoy)catch()

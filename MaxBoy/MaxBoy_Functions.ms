@@ -4,8 +4,51 @@
 --Debug print to console
 fn printc tString =
 (
+	if (PrintToConsole == undefined) do (return())
 	--Print as string to print arrays and other things too
-	if (s_print == true) do (print(tString as string))
+	try
+	(
+		if (PrintToConsole == true) do (print(tString as string))
+	)catch(print("Print is goofed"))
+	--if (s_print == true) do (print(tString as string))
+)
+
+fn validArray tArray =
+(
+	local x = false
+
+	if (classOf tArray != Array) then
+	(
+		x = false
+	)
+	else
+	(
+		if (tArray == undefined) then
+		(
+			x = false
+		)
+		else
+		(
+			if (tArray.count == 0) then
+			(
+				x = false
+			)
+			else
+			(
+				x = true
+			)
+		)
+	)
+
+	if (x == true) then
+	(
+		return(true)
+	)
+	else
+	(
+		printc("No objects, exiting sort.")
+		return(false)
+	)
 )
 
 --Window resize function for rollouts
@@ -31,21 +74,30 @@ fn CopyNodes tArray type &Container =
 
 	aCopies = tCopies as array
 
+	for i = 1 to aCopies.count do
+	(
+		aCopies[i].name = tArray[i].name
+	)
+
+	Container = aCopies
+
+	/*
 	if (aCopies.count > 1) then
 	(
-		Container = aCopies	
+		Container = aCopies
 	)
 	else
 	(
 		Container = aCopies[1]
-	)	
-)	
+	)
+	*/
+)
 
 --Collects nodes based on prefix
-fn getPrefixObjects prefix = 
+fn getPrefixObjects prefix =
 (
 	free nodeList
-	
+
 	local storedSelection = (selection as array)
 	local tempArray = #()
 
@@ -59,7 +111,7 @@ fn getPrefixObjects prefix =
 			--print("Appended " + obj.name as string + " to list.")
 		)
 	)
-	
+
 	local tArray = for i in tempArray collect i
 	nodeList = for i in tempArray collect i
 
@@ -70,7 +122,7 @@ fn getPrefixObjects prefix =
 )
 
 --Generic node collecting form with prefix function
-fn collectObjects prefixIndex = 
+fn collectObjects prefixIndex =
 (
 	--print("Cleaning existing node list")
 	free nodeList
@@ -86,7 +138,7 @@ fn collectObjects prefixIndex =
 		else
 		(
 			local tryAgain = queryBox "Nothing selected, use prefix and try again?" title:"Nothing selected!"
-			
+
 			if (tryAgain == true) then
 			(
 				tempArray = getPrefixObjects(prefixIndex)
@@ -107,8 +159,8 @@ fn collectObjects prefixIndex =
 	)
 	else
 	(
-		for obj in selection do 
-		(	
+		for obj in selection do
+		(
 			append tempArray obj
 		)
 	)
@@ -119,7 +171,7 @@ fn collectObjects prefixIndex =
 )
 
 --Selects all children under supplied node
-fn getChildren obj = 
+fn getChildren obj =
 (
 	if (obj == unsupplied) do (obj = selection[1])
 	--Select children can also be done with "Cntrl + PgDown"
@@ -139,7 +191,7 @@ fn getChildren obj =
 )
 
 --Cleans undefined entries out of an array
-fn cleanArray tArray = 
+fn cleanArray tArray =
 (
 	local whileIndex = 1
 
@@ -162,21 +214,17 @@ fn cleanArray tArray =
 --Sorts an hierarchy based on hierarchy depth
 fn sortToHierarchy &tArray &tIndex =
 (
-	if (tArray == undefined) do 
-	(
-		print("No objects, exiting sort.")
-		return()
-	)
+	if (validArray(tArray) == false) do (return())
 
 	local shuffleArray = #()
 
 	for i = 1 to tArray.count do
-	(	
-		local o = tArray[i]	
+	(
+		local o = tArray[i]
 
 		local p = o --Parent ref (starts with current object)
 		local pc = -1 --Parent count
-		
+
 		local searchParent = true
 
 		while (searchParent == true) do
@@ -220,7 +268,7 @@ fn sortToHierarchy &tArray &tIndex =
 				si = 0
 				foundOne = false
 				continue
-			)	
+			)
 		)
 		else
 		(
@@ -252,10 +300,10 @@ fn sortToHierarchy &tArray &tIndex =
 
 	local oArray = #()
 	local iArray = #()
-	
-	for i = 1 to shuffleArray.count do 
+
+	for i = 1 to shuffleArray.count do
 	(
-		--print("Obj: " + (shuffleArray[i][1].name as string) + " i: " + (shuffleArray[i][2] as string))
+		printc("Obj: " + (shuffleArray[i][1].name as string) + " i: " + (shuffleArray[i][2] as string))
 		oArray[i] = shuffleArray[i][1]
 		iArray[i] = shuffleArray[i][2]
 	)
@@ -272,7 +320,7 @@ fn getHierarchyIndex tArray =
 	if (tArray == undefined) do (return())
 
 	local indexArray = #() --Array to hold what depth the node is located in
-	
+
 	local wArray = tArray
 	local sortedArray = #()
 	local shitArray = #()
@@ -307,7 +355,7 @@ fn getHierarchyIndex tArray =
 				insertItem pc indexArray pos
 				exit
 			)
-		)			
+		)
 	)
 
 	local indexSorted = cleanArray(indexArray)
@@ -319,7 +367,7 @@ fn getHierarchyIndex tArray =
 			indexSorted[i] -= 1
 		)
 	)
-	
+
 	print(indexSorted)
 	--Return supplied array reordered
 	return(indexSorted)
@@ -357,43 +405,49 @@ fn RotatePivotOnly obj _rotation =
 )
 
 --Sets the scale to [1,1,1] and keeps the hierarchy intact
-fn fn_resetScales tArray = 
+fn fn_resetScales tArray =
 (
 	--clearListener()
 	print("Resetting scales!")
-	
-	local scaleArray = sortToHierarchy(tArray)
 
-	with redraw off 
-	(			
+	if (validArray(tArray) == false) do (return())
+
+	local indexNull = #()
+	local scaleArray = tArray
+
+	sortToHierarchy &scaleArray &indexNull
+
+	with redraw off
+	with undo off
+	(
 		--for d in scaleArray do (format "node: %; \n" d)
 		local parentArray = #()
 
-		--Collect parents and unparent, to avoid cycles 
-		for o in scaleArray do 
-		(	
+		--Collect parents and unparent, to avoid cycles
+		for o in scaleArray do
+		(
 			append parentArray o.parent
 			o.parent = undefined
 		)
 
 		--Reset scales when all nodes are free floating
-		for o in scaleArray do 
-		(	
+		for o in scaleArray do
+		(
 			ResetScale o
 		)
 
 		--Reparent when scales are reset
-		for i = 1 to scaleArray.count do 
+		for i = 1 to scaleArray.count do
 		(
 			scaleArray[i].parent = parentArray[i]
 		)
-		
+
 		print("Scaling operation is done!")
 	)
-)	
+)
 
 -- Calculates the axis-aligned bounding box corners of an object
-fn getAABBoxPoints obj = 
+fn getAABBoxPoints obj =
 (
 	local aabbPoints = #()
 
@@ -407,17 +461,17 @@ fn getAABBoxPoints obj =
 	append aabbPoints (Point3 bbMax.x bbMin.y bbMax.z)	-- top-right-back corner
 	append aabbPoints (Point3 bbMin.x bbMin.y bbMax.z)	-- top-left-back corner
 	append aabbPoints (Point3 bbMin.x bbMax.y bbMax.z)	-- top-left-front corner
-	
+
 	append aabbPoints (Point3 bbMax.x bbMax.y bbMin.z)	-- bottom-right-front corner
 	append aabbPoints (Point3 bbMax.x bbMin.y bbMin.z)	-- bottom-right-back corner
 	append aabbPoints (Point3 bbMin.x bbMin.y bbMin.z)	-- bottom-left-back corner
 	append aabbPoints (Point3 bbMin.x bbMax.y bbMin.z)	-- bottom-left-front corner
-	
+
 	return aabbPoints
 )
 
 -- Calculates the oriented bounding box corners of an object
-fn getOBBoxPoints obj = 
+fn getOBBoxPoints obj =
 (
 	local obbPoints = #()
 
