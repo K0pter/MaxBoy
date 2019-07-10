@@ -44,6 +44,7 @@ rollout ToolBoy "ToolBoy"
 
 		group "Diagnose"
 		(
+			button CleanMem "Clean Mem" width:150 align:#left toolTip:"Clears scene memory caches"
 			button nodeCheckup "Checkup!" width:150 align:#left toolTip:"Return bad transforms and other data"
 		)
 
@@ -278,6 +279,13 @@ rollout ToolBoy "ToolBoy"
 				dumpMessage.bs_n.items = (for o in bNodes collect o.name)
 				dumpMessage.bs_ns.items = (for o in bNodes collect (o.scale as string))
 			)
+		)
+
+		on CleanMem pressed do
+		(
+			gc()
+			freescenebitmaps()
+			clearundobuffer()
 		)
 	)
 
