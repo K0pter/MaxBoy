@@ -199,6 +199,45 @@ rollout PipeBoy "PipeBoy"
 		global ro_p = PipeBoy.UI_RolloutGroup_Project
 	)
 
+	fn LoadVariables =
+	(
+		--Setup which project to load from file
+		--print("PBS: " + PBS)
+		tempProjectArray = getINISetting PBS "MainData" "g_Projects"
+		global projectArray = execute tempProjectArray
+
+		if (currentProjectSelected == undefined OR currentProjectSelected == 0) then
+			t_selectProject = 1
+			else
+			t_selectProject = currentProjectSelected
+
+		global currentProjectSelected = t_selectProject
+
+		if (projectArray[t_selectProject] != undefined) then
+		(
+			local pro = (projectArray[t_selectProject] as string)
+
+			global p_ProjectRoot = 		getINISetting PBS pro "p_projectRoot"
+			global p_ProjectSource = 	getINISetting PBS pro "p_projectSource"
+			global p_projectAsset =		getINISetting PBS pro "p_projectAsset"
+
+			global s_Engine = 			getINISetting PBS pro "s_Engine" as Integer
+			global s_ImportFromRaw = 	getINISetting PBS pro "s_ImportFromRaw" as booleanClass
+			global s_ForwardAxis = 		getINISetting PBS pro "s_ForwardAxis" as Integer
+			global s_MeshGroupPrefix = 	getINISetting PBS pro "s_MeshGroupPrefix"
+
+			global s_BonePrefix = 		getINISetting PBS pro "s_BonePrefix"
+			global s_BoneRoot = 		getINISetting PBS pro "s_BoneRoot"
+			global s_AlignPrefix = 		getINISetting PBS pro "s_AlignPrefix"
+
+			print("Loaded project: " + pro)
+		)
+		else
+		(
+			MessageBox "Project seems to be missing!" title:"Missing project!"
+		)
+	)
+
 	fn RotatePivotOnlyEngine obj =
 	(
 		/*
@@ -561,45 +600,6 @@ rollout PipeBoy "PipeBoy"
 
 		free cleanGroup
 		free exportGroup
-	)
-
-	fn LoadVariables =
-	(
-		--Setup which project to load from file
-		--print("PBS: " + PBS)
-		tempProjectArray = getINISetting PBS "MainData" "g_Projects"
-		global projectArray = execute tempProjectArray
-
-		if (currentProjectSelected == undefined OR currentProjectSelected == 0) then
-			t_selectProject = 1
-			else
-			t_selectProject = currentProjectSelected
-
-		global currentProjectSelected = t_selectProject
-
-		if (projectArray[t_selectProject] != undefined) then
-		(
-			local pro = (projectArray[t_selectProject] as string)
-
-			global p_ProjectRoot = 		getINISetting PBS pro "p_projectRoot"
-			global p_ProjectSource = 	getINISetting PBS pro "p_projectSource"
-			global p_projectAsset =		getINISetting PBS pro "p_projectAsset"
-
-			global s_Engine = 			getINISetting PBS pro "s_Engine" as Integer
-			global s_ImportFromRaw = 	getINISetting PBS pro "s_ImportFromRaw" as booleanClass
-			global s_ForwardAxis = 		getINISetting PBS pro "s_ForwardAxis" as Integer
-			global s_MeshGroupPrefix = 	getINISetting PBS pro "s_MeshGroupPrefix"
-
-			global s_BonePrefix = 		getINISetting PBS pro "s_BonePrefix"
-			global s_BoneRoot = 		getINISetting PBS pro "s_BoneRoot"
-			global s_AlignPrefix = 		getINISetting PBS pro "s_AlignPrefix"
-
-			print("Loaded project: " + pro)
-		)
-		else
-		(
-			MessageBox "Project seems to be missing!" title:"Missing project!"
-		)
 	)
 
 	rollout UI_RolloutGroup_Main "Export"
