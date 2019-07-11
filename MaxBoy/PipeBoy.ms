@@ -364,6 +364,8 @@ rollout PipeBoy "PipeBoy"
 	--Dependency class
 	fn PrepareMeshForExport group_mesh generate_lods lods_amount =
 	(
+		local ObjectSelection = selection as array
+
 		RefreshRollouts()
 
 		if (currentAssetSelected != 1) do
@@ -372,11 +374,21 @@ rollout PipeBoy "PipeBoy"
 			return()
 		)
 
-		if (selection.count == 0 and group_mesh == false) do
+		if (ObjectSelection.count == 0 and group_mesh == false) do
 		(
-			--clearListener()
 			print("Nothing selected, quitting...")
 			return()
+		)
+
+		local excludeObject = getNodeByName "ExcludeExport"
+		local RemoveObjectsSelection = getChildren(excludeObject)
+
+		for i = 1 to RemoveObjectsSelection.count do
+		(
+			local findQue = findItem ObjectSelection RemoveObjectsSelection[i]
+
+			if (findQue != 0) do
+				deleteItem ObjectSelection findQue
 		)
 
 		global cleanGroup = #()
@@ -393,8 +405,6 @@ rollout PipeBoy "PipeBoy"
 
 			with undo off
 			(
-				--clearlistener()
-
 				--Create root export object for axis conversion
 				local ExportParent = Point Size:500 Name:"ExportParent"
 				RotatePivotOnlyEngine(ExportParent)
@@ -404,7 +414,10 @@ rollout PipeBoy "PipeBoy"
 				append cleanGroup ExportParent
 
 				--Clone export objects for non-destructive processing
-				maxOps.cloneNodes selection cloneType:#copy newNodes:&SafeCopies
+				local SafeCopies = #()
+
+				--Copy export objects into a "safe selection" in case something goes wrong
+				CopyNodes ObjectSelection #copy &SafeCopies
 				append cleanGroup SafeCopies
 
 				--Make all instances in selection unique (Will be ignored otherwise)
@@ -484,8 +497,6 @@ rollout PipeBoy "PipeBoy"
 						)
 						else
 						(
-							--CombinedMesh.objectOffsetPos = g.position
-							--CombinedMesh.objectOffsetRot = g.rotation
 							ResetTransform CombinedMesh
 						)
 
@@ -560,7 +571,8 @@ rollout PipeBoy "PipeBoy"
 				)
 			)
 
-			delete ExportParent
+			--Already deleted I guess?
+			--delete ExportParent
 
 			messageBox "Something went wrong!" title:"Error"
 
@@ -837,13 +849,6 @@ rollout PipeBoy "PipeBoy"
 		global ro_p = PipeBoy.UI_RolloutGroup_Project
 
 		ro_a.IsType.selection = 1
-
-		/*Old PBS setup
-		global path_settings = getScriptLocation() --Get script location on computer to load project data
-
-		global PBS = (path_settings + "Pipeboy_Settings.ini") --Setup settings file
-		global PipeBoySettings = (path_settings + "PipeBoy_ProjectSettings.ms")
-		*/
 
 		PBS = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_Settings.ini")
 		PipeBoySettings = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_ProjectSettings.ms")

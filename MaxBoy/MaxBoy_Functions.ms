@@ -51,6 +51,27 @@ fn validArray tArray =
 	)
 )
 
+fn RootParent tNode =
+(
+	local tParent = tNode.parent
+
+	local foundParent = false
+
+	while(foundParent == false) do
+	(
+		if (tParent.parent != undefined) then
+		(
+			tParent = tParent.parent
+		)
+		else
+		(
+			foundParent = true
+		)
+	)
+
+	return tParent
+)
+
 --Window resize function for rollouts
 fn resizeWindow tTarget tState tRollout =
 (
@@ -67,30 +88,21 @@ fn resizeWindow tTarget tState tRollout =
 )
 
 --Standardized copying function
-fn CopyNodes tArray type &Container =
+fn CopyNodes tArray type &ContainerArray =
 (
-	--Copies node(s) and returns them in supplied container
+	--Copies node(s)
 	maxOps.cloneNodes tArray cloneType:type newNodes:&tCopies #nodialog
 
 	aCopies = tCopies as array
 
+	--Rename copied objects names to original's names
 	for i = 1 to aCopies.count do
 	(
 		aCopies[i].name = tArray[i].name
 	)
 
-	Container = aCopies
-
-	/*
-	if (aCopies.count > 1) then
-	(
-		Container = aCopies
-	)
-	else
-	(
-		Container = aCopies[1]
-	)
-	*/
+	--Returns nodes in supplied container
+	ContainerArray = aCopies
 )
 
 --Collects nodes based on prefix
