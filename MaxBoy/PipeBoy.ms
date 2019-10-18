@@ -186,7 +186,7 @@ fn LodGenerator &Obj Lods =
 rollout PipeBoy "PipeBoy"
 (
 	--Construct Base UI "Frame" for rollout windows
-	subRollout UI_Base width:325 height:90 pos:[-1,-1]
+	subRollout UI_Base width:235 height:90 pos:[-1,-1]
 
 	--include "MaxBoy_Functions.ms"
 	include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
@@ -364,9 +364,9 @@ rollout PipeBoy "PipeBoy"
 	--Dependency class
 	fn PrepareMeshForExport group_mesh generate_lods lods_amount =
 	(
-		local ObjectSelection = selection as array
-
 		RefreshRollouts()
+
+		local ObjectSelection = selection as array
 
 		if (currentAssetSelected != 1) do
 		(
@@ -380,15 +380,23 @@ rollout PipeBoy "PipeBoy"
 			return()
 		)
 
+		--Get exclusion node parent
 		local excludeObject = getNodeByName "ExcludeExport"
-		local RemoveObjectsSelection = getChildren(excludeObject)
 
-		for i = 1 to RemoveObjectsSelection.count do
+		--Remove exclusion objects from export selection, ignore pass if no object is found
+		if (excludeObject != undefined) do
 		(
-			local findQue = findItem ObjectSelection RemoveObjectsSelection[i]
+			printc("Found exclusion node!")
 
-			if (findQue != 0) do
-				deleteItem ObjectSelection findQue
+			local RemoveObjectsSelection = getChildren(excludeObject)
+
+			for i = 1 to RemoveObjectsSelection.count do
+			(
+				local findQue = findItem ObjectSelection RemoveObjectsSelection[i]
+
+				if (findQue != 0) do
+					deleteItem ObjectSelection findQue
+			)
 		)
 
 		global cleanGroup = #()
@@ -618,16 +626,16 @@ rollout PipeBoy "PipeBoy"
     (
 		group "Mesh"
 		(
-			button Export "Export" width:125 pos:[20,20]
-			button ExportSelection "Export Selection" width:125 pos:[155,20]
+			button Export "Export" width:62 pos:[25,22]
+			button ExportSelection "Export Selection" width:100 pos:[25+70,22]
 		)
 
 		group "Animation"
 		(
-			button ExportAnimation "Export Animation" width:125 pos:[20, 70]
+			button ExportAnimation "Export Animation" width:100 pos:[15, 70]
 
-			spinner anim_range_start "" pos:[160,73] width:50 height:16 range:[-10000,10000,normTime 0] type:#integer
-			spinner anim_range_end  "to  " pos:[160+70,73] width:50 height:16 range:[-10000,10000,normTime 1] type:#integer
+			spinner anim_range_start "" pos:[115,73] width:42 height:16 range:[-10000,10000,normTime 0] type:#integer
+			spinner anim_range_end  "to " pos:[115+54,73] width:42 height:16 range:[-10000,10000,normTime 1] type:#integer
 		)
 
 		on UI_RolloutGroup_Main rolledUp State do (resizeWindow PipeBoy State UI_RolloutGroup_Main)
@@ -865,5 +873,5 @@ rollout PipeBoy "PipeBoy"
 )
 
 try(destroyDialog PipeBoy)catch()
-createDialog PipeBoy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,150] width:325 height:90
+createDialog PipeBoy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,150] width:235 height:90
 )

@@ -186,6 +186,14 @@ fn collectObjects prefixIndex =
 fn getChildren obj =
 (
 	if (obj == unsupplied) do (obj = selection[1])
+
+	--Return if obj is null
+	if (obj == undefined) do
+	(
+		printc("getChildren:: obj is null!")
+		return()
+	)
+
 	--Select children can also be done with "Cntrl + PgDown"
 	clearSelection()
 	select obj
