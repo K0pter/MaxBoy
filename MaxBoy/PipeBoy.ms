@@ -5,12 +5,16 @@ general workflows for game-related asset creation.
 
 --Start PipeBoy--
 (
+--include "MaxBoy_Functions.ms"
+include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
+
 --Initialize persistent globals
 persistent global currentProjectSelected, currentAssetSelected, PrintToConsole --Persistent handles
 
 --Initialize globals
 global PipeBoy --Rollout class handle
 global PipeBoySettings --Pipeboy settings file
+global PipeBoyAnimSetup --Pipeboy animation setup file
 global PBS --Pipeboy settings .ini file handle
 
 global UnlinkFromParent
@@ -20,6 +24,7 @@ global gName = (getFilenameFile  maxFileName)
 global exportGroup = #()
 global cleanGroup = #()
 global projectArray = #()
+global SequenceArray = #()
 
 --Local settings struct
 struct LocalSettings
@@ -28,31 +33,36 @@ struct LocalSettings
 	p_projectSource, 	--String
 	p_projectAsset, 	--String
 
-	s_Engine, 			-- Integer
+	s_Engine, 			--Integer
 	s_ImportFromRaw, 	--booleanClass
 	s_ForwardAxis, 		--Integer
 	s_MeshGroupPrefix, 	--String
 
 	s_BonePrefix, 		--String
 	s_BoneRoot, 		--String
-	s_AlignPrefix 		--String
+	s_AlignPrefix, 		--String
+
+	s_ac_Folder,		--String
+	s_ac_Prefix, 		--String
+	s_ac_FindIntelligent,--booleanClass
+	s_ac_LockRoot, 		--booleanClass
+	s_ac_FilePrefix,	--String
+	s_ac_FileSuffix,	--String
+	s_ac_RemoveFilePre,	--Integer
+	s_ac_RemoveFileSuf  --Integer
+)
+
+--Local sequence struct
+struct Sequence
+(
+	s_Name 				= "Null",   --String
+	s_ExportAccessory	= false, 	--booleanClass
+	s_Range_Start 		= 0, 		--Integer
+	s_Range_End 		= 1 		--Integer
 )
 
 --Initialize local settings "container" to easily store and update for later
 global LS = LocalSettings()
-
-/*
-fn getScriptLocation =
-(
-	local ScriptName = "PipeBoy.ms"
-	local FileName = getSourceFileName() as string
-	--local FileName = getThisScriptFilename()  as string
-	local FilteredPath = replace FileName (FileName.count - ScriptName.count + 1) (ScriptName.count) ""
-
-	--print(FilteredPath)
-	return FilteredPath
-)
-*/
 
 fn FreezeTransforms obj =
 (
@@ -183,13 +193,123 @@ fn LodGenerator &Obj Lods =
 	clearSelection()
 )
 
+--Load from .boi file
+fn LoadSequences =
+(
+	--Call garbage collection to avoid I/O issues
+	--gc()
+	--print(getThisScriptFilename())
+
+	--Remove file name's extension
+	local filteredName = replace (maxFileName as string) (maxFileName.count - 3) 4 ""
+
+	--Construct search path
+	local relativePath = ((getScriptLocation (getThisScriptFilename() as string) "PipeBoy") + "\\AnimSetup\\" + filteredName + ".boi")
+
+	--print("Relative: " + relativePath)
+
+	--Convert to valid search path
+	local filePath = convertToPath relativePath
+
+	--print("File: " + filePath)
+
+	if (doesFileExist filePath == false) do
+	(
+		print("No file to load from @ " + (filePath as string))
+		return()
+	)
+
+	local oFile = openFile filePath mode:"r"
+
+	if (oFile != undefined) then
+	(
+		--print("Loading sequences from >> " + relativePath)
+
+		SequenceArray = #()
+
+		local i = 0
+
+		do
+		(
+			i += 1
+
+			local checkCurrent = ("[PipSeq_" + (i as string) + "]")
+
+			local searchResult = skipToString oFile checkCurrent
+
+			if (searchResult != undefined) do
+			(
+				local skipPos = ((filePos oFile) + 2)
+
+				--Start reading sequence data
+				seek oFile skipPos
+
+				--print("Name pos >" + (checkCurrent) + "< " + (filePos oFile as string))
+
+				local r_name = (readLine oFile as string)
+
+				--print("Post line read: " + filePos oFile as string)
+
+			    --print("Bool pos >" + (checkCurrent) + "< " + (filePos oFile as string))
+
+				local r_expa = (readValue oFile as booleanClass)
+
+				local r_fsta = (readValue oFile as integer)
+
+				local r_fend = (readValue oFile as integer)
+
+				/*
+				print(">" + (checkCurrent) + "< n: " + r_name)
+				print(">" + (checkCurrent) + "< e: " + r_expa as string)
+				print(">" + (checkCurrent) + "< rs: " + r_fsta as string)
+			    print(">" + (checkCurrent) + "< re: " + r_fend as string)
+				*/
+
+				local loadSequence = Sequence s_Name:(r_name) s_ExportAccessory:r_expa s_Range_Start:r_fsta s_Range_End:r_fend
+
+				/*
+				print(loadSequence.s_Name + "< n: " + loadSequence.s_Name as string)
+				print(loadSequence.s_Name + "< e: " + loadSequence.s_ExportAccessory as string)
+				print(loadSequence.s_Name + "< rs: " + loadSequence.s_Range_Start as string)
+				print(loadSequence.s_Name + "< re: " + loadSequence.s_Range_End as string)
+				*/
+
+				append SequenceArray loadSequence
+
+				--print("Loaded sequence >> " + loadSequence.s_Name as string)
+			)
+		) while (searchResult != undefined)
+
+		close oFile
+
+		--print("Sequence Array >> " + SequenceArray as string)
+		print("[ Loaded sequences from file ]")
+	)
+	else
+	(
+		print("Couldn't find file to open!")
+	)
+)
+
 rollout PipeBoy "PipeBoy"
 (
 	--Construct Base UI "Frame" for rollout windows
 	subRollout UI_Base width:235 height:90 pos:[-1,-1]
 
-	--include "MaxBoy_Functions.ms"
-	include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
+	--Window resize function for rollouts [ Override ]
+	fn resizeWindow tTarget tRollout tState =
+	(
+	    if (tState == true) then
+	    (
+			UI_Base.height += tRollout.height
+			tTarget.height += tRollout.height
+	    )
+	    else
+	    (
+			UI_Base.height -= tRollout.height
+			tTarget.height -= tRollout.height
+	    )
+	)
 
 	fn RefreshRollouts =
 	(
@@ -217,18 +337,27 @@ rollout PipeBoy "PipeBoy"
 		(
 			local pro = (projectArray[t_selectProject] as string)
 
-			global p_ProjectRoot = 		getINISetting PBS pro "p_projectRoot"
-			global p_ProjectSource = 	getINISetting PBS pro "p_projectSource"
-			global p_projectAsset =		getINISetting PBS pro "p_projectAsset"
+			global p_ProjectRoot 		= (getINISetting PBS pro "p_projectRoot")
+			global p_ProjectSource 		= (getINISetting PBS pro "p_projectSource")
+			global p_projectAsset 		= (getINISetting PBS pro "p_projectAsset")
 
-			global s_Engine = 			getINISetting PBS pro "s_Engine" as Integer
-			global s_ImportFromRaw = 	getINISetting PBS pro "s_ImportFromRaw" as booleanClass
-			global s_ForwardAxis = 		getINISetting PBS pro "s_ForwardAxis" as Integer
-			global s_MeshGroupPrefix = 	getINISetting PBS pro "s_MeshGroupPrefix"
+			global s_Engine 			= (getINISetting PBS pro "s_Engine") as Integer
+			global s_ImportFromRaw 		= (getINISetting PBS pro "s_ImportFromRaw") as booleanClass
+			global s_ForwardAxis 		= (getINISetting PBS pro "s_ForwardAxis") as Integer
+			global s_MeshGroupPrefix 	= (getINISetting PBS pro "s_MeshGroupPrefix")
 
-			global s_BonePrefix = 		getINISetting PBS pro "s_BonePrefix"
-			global s_BoneRoot = 		getINISetting PBS pro "s_BoneRoot"
-			global s_AlignPrefix = 		getINISetting PBS pro "s_AlignPrefix"
+			global s_BonePrefix 		= (getINISetting PBS pro "s_BonePrefix")
+			global s_BoneRoot 			= (getINISetting PBS pro "s_BoneRoot")
+			global s_AlignPrefix 		= (getINISetting PBS pro "s_AlignPrefix")
+
+			global s_ac_Folder 			= (getINISetting PBS pro "s_ac_Folder")
+			global s_ac_Prefix 			= (getINISetting PBS pro "s_ac_Prefix")
+			global s_ac_FindIntelligent = (getINISetting PBS pro "s_ac_FindIntelligent") as booleanClass
+			global s_ac_LockRoot		= (getINISetting PBS pro "s_ac_LockRoot") as booleanClass
+			global s_ac_FilePrefix 		= (getINISetting PBS pro "s_ac_FilePrefix")
+			global s_ac_FileSuffix 		= (getINISetting PBS pro "s_ac_FileSuffix")
+			global s_ac_RemoveFilePre 	= (getINISetting PBS pro "s_ac_RemoveFilePre") as Integer
+			global s_ac_RemoveFileSuf 	= (getINISetting PBS pro "s_ac_RemoveFileSuf") as Integer
 
 			print("Loaded project: " + pro)
 		)
@@ -272,13 +401,17 @@ rollout PipeBoy "PipeBoy"
 		)
 	)
 
-	fn exportProcess ExportType CurrentProjectKey =
+	fn exportProcess ExportType aStart: aEnd: aSequenceName: aExport: OVERRIDEREDRAW: =
 	(
-		local pro = projectArray[CurrentProjectKey] as string
+		local r_start = ro_m.anim_range_start.value
+		local r_end = ro_m.anim_range_end.value
 
-		LoadVariables() -- Double check saved variables
+		if (aStart != unsupplied) do (r_start = aStart)
+		if (aEnd != unsupplied) do (r_end = aEnd)
 
-		RefreshRollouts() --Same for rollouts
+		if (r_start == r_end) do (r_end = r_end + 1) --If range is 0 long, add one frame to export properly
+
+		local pro = projectArray[currentProjectSelected] as string
 
 		--Update filename to base asset name from
 		gName = (getFilenameFile  maxFileName)
@@ -304,8 +437,12 @@ rollout PipeBoy "PipeBoy"
 			(
 				FBXExporterSetParam "Animation" False
 
-				clearSelection
-				execute "$exportGroup"
+				clearSelection()
+
+				with redraw off
+				(
+					execute "$exportGroup"
+				)
 			)
 
 			2:
@@ -315,17 +452,13 @@ rollout PipeBoy "PipeBoy"
 				FBXExporterSetParam "BakeAnimation" True
 				FBXExporterSetParam "BakeResampleAnimation" True
 
-				local frameStart = ro_m.anim_range_start.value
-				local frameEnd = ro_m.anim_range_end.value
-
-				FBXExporterSetParam "BakeFrameStart" frameStart
-				FBXExporterSetParam "BakeFrameEnd" frameEnd
+				FBXExporterSetParam "BakeFrameStart" r_start
+				FBXExporterSetParam "BakeFrameEnd" r_end
 
 				--Resize active range to exporting range length to avoid "dead frames"
-				animationRange = interval frameStart frameEnd
+				animationRange = interval r_start r_end
 			)
 		)
-
 
 		--Set export params
 		FBXExporterSetParam "PushSettings"
@@ -343,22 +476,70 @@ rollout PipeBoy "PipeBoy"
 			local p_fileExportPath = (maxFilePath as string)
 		)
 
-		if NOT doesFileExist p_fileExportPath OR NOT getFileAttribute p_fileExportPath #directory do
+		if (NOT doesFileExist p_fileExportPath OR NOT getFileAttribute p_fileExportPath #directory) do
 		(
 			--Path folder not found, create folder
 			printc("Path folder not found, creating folder.")
 			makeDir p_fileExportPath
 		)
 
-		fileExportName = (p_fileExportPath + gName + ro_a.FileExtension.text + ".fbx") as string
+		if (aSequenceName != unsupplied) then
+		(
+			--Animation sequence naming
+			fileExportName = (p_fileExportPath + (aSequenceName as string) + ro_a.FileExtension.text + ".fbx") as string
+		)
+		else
+		(
+			--Regular filename-based naming
+			fileExportName = (p_fileExportPath + gName + ro_a.FileExtension.text + ".fbx") as string
+		)
+
 		exportfile (fileExportName) #noprompt selectedOnly:true using:thePlugin
 
+		print("Exported at >> " + fileExportName)
+
+		--[ Export accessory ]--
+		if ((aExport != unsupplied AND aExport == true AND ro_m.ExportAccessory.state == true) OR (aExport == unsupplied AND ro_m.ExportAccessory.state == true)) do
+		(
+			local accessory = LocateAccessory pre: s_ac_Prefix
+
+			if (accessory != undefined) do
+			(
+				getChildren(accessory)
+
+				local accessoryExportName = ""
+
+				local adjustedName = gName
+
+				if (aSequenceName != unsupplied) do (adjustedName = (aSequenceName as string))
+
+				local accessoryName = replace adjustedName 1 s_ac_RemoveFilePre s_ac_FilePrefix
+				accessoryName = replace accessoryName (accessoryName.count - s_ac_RemoveFileSuf) s_ac_RemoveFileSuf s_ac_FileSuffix
+
+				local accessoryFolder =  ((s_ac_Folder as string) + "\\")
+
+				accessoryExportName = (p_fileExportPath + accessoryFolder + accessoryName + ro_a.FileExtension.text + ".fbx") as string
+
+				exportfile (accessoryExportName) #noprompt selectedOnly:true using:thePlugin
+
+				print("Exported accessory at >> " + accessoryExportName)
+			)
+		)
+
+		--[ Finish up export sequence]--
 		animationRange = tempInterval
 
-		print("Exported to file: " + fileExportName)
-
 		clearSelection()
-		enableSceneRedraw()
+
+		if (OVERRIDEREDRAW == unsupplied) then
+		(
+			enableSceneRedraw()
+		)
+		else
+		(
+			if (OVERRIDEREDRAW == false) do (enableSceneRedraw())
+		)
+
 	)
 
 	--Dependency class
@@ -604,7 +785,7 @@ rollout PipeBoy "PipeBoy"
 		clearSelection()
 		select exportGroup
 
-		exportProcess 1 currentProjectSelected
+		exportProcess 1
 
 		clearSelection()
 
@@ -622,26 +803,35 @@ rollout PipeBoy "PipeBoy"
 		free exportGroup
 	)
 
+
 	rollout UI_RolloutGroup_Main "Export"
     (
 		group "Mesh"
 		(
-			button Export "Export" width:62 pos:[25,22]
-			button ExportSelection "Export Selection" width:100 pos:[25+70,22]
+			button Export "Export" width:94 pos:[14,22]
+			button ExportSelection "Export Selection" width:94 pos:[116,22]
 		)
 
 		group "Animation"
 		(
-			button ExportAnimation "Export Animation" width:100 pos:[15, 70]
+			button ExportAnimation "Export Animation" width:94 pos:[14, 70]
 
 			spinner anim_range_start "" pos:[115,73] width:42 height:16 range:[-10000,10000,normTime 0] type:#integer
 			spinner anim_range_end  "to " pos:[115+54,73] width:42 height:16 range:[-10000,10000,normTime 1] type:#integer
+
+			button EditSequences "Edit sequences" pos:[118, 95]
+
+			checkbox ExportSequences "Exp Sequences" pos:[15, 95]
+			checkbox ExportAccessory "Exp Accessory" pos:[15, 112]
 		)
 
-		on UI_RolloutGroup_Main rolledUp State do (resizeWindow PipeBoy State UI_RolloutGroup_Main)
+		on UI_RolloutGroup_Main rolledUp State do (resizeWindow PipeBoy UI_RolloutGroup_Main State)
 
 		on Export pressed do
 		(
+			LoadVariables() -- Double check saved variables
+			RefreshRollouts() --Same for rollouts
+
 			select $*
 
 			if (selection.count == 0) do (return())
@@ -659,6 +849,9 @@ rollout PipeBoy "PipeBoy"
 
 		on ExportSelection pressed do
 		(
+			LoadVariables() -- Double check saved variables
+			RefreshRollouts() --Same for rollouts
+
 			if (selection.count == 0) do (return())
 
 			if ((getFilenameFile  maxFileName) == "") do
@@ -674,34 +867,36 @@ rollout PipeBoy "PipeBoy"
 
 		on ExportAnimation pressed do
 		(
+			LoadVariables() -- Double check saved variables
+			RefreshRollouts() --Same for rollouts
+
 			if ((getFilenameFile  maxFileName) == "") do
 			(
 				MessageBox "Save scene first!" title:"Export error!"
 				return()
 			)
 
-			clearSelection
-			disableSceneRedraw()
-
-			if (isValidNode(getNodeByName (s_BoneRoot as string)) == false) do
-			(
-				messageBox "No root bone to select in scene!" title:"No root bone!"
-				enableSceneRedraw()
-				return()
-			)
+			clearSelection()
 
 			try
 			(
+				disableSceneRedraw()
+
 				local rootBone = getNodeByName (s_BoneRoot as string) ignoreCase:false
 
 				if (rootBone == undefined) do
 				(
-					messageBox "Can't find bone root!" title:"Error!"
+					messageBox "Can't find root bone, check project settings! Case sensitive!" title:"No root bone!"
 					return()
 				)
 
-				local nodeSelection = getChildren(rootBone)
-				local boneSelection = #()
+				with redraw off
+				(
+					local nodeSelection = getChildren(rootBone)
+					local boneSelection = #()
+				)
+
+				print("Redraw disabled?: " + (isSceneRedrawDisabled() as string))
 
 				for i = 1 to nodeSelection.count do
 				(
@@ -716,17 +911,60 @@ rollout PipeBoy "PipeBoy"
 					)
 				)
 
-				clearSelection
+				clearSelection()
 
-				select boneSelection
+				if (ExportSequences.state == true) then
+				(
+					--Load fresh sequence data from .boi file!
+					LoadSequences()
 
-				exportProcess 2 ro_p.currentProject.selection
+					--print("Sequences: " + SequenceArray as string)
+
+					--return()
+					for s in SequenceArray do
+					(
+						--Re-select each pass
+						select boneSelection
+
+						--print("Exporting sequence #" + (s as string) + "...")
+
+						local aName = s.s_Name
+						local aStart = s.s_Range_Start
+						local aEnd = s.s_Range_End
+						local aExp = s.s_ExportAccessory
+
+						exportProcess 2 aStart: aStart aEnd: aEnd aSequenceName: aName aExport: aExp OVERRIDEREDRAW:true
+					)
+				)
+				else
+				(
+					with redraw off
+					(
+						--Do single selection pass
+						select boneSelection
+
+						--print("Do regular export")
+						exportProcess 2
+					)
+				)
 			)
 			catch
 			(
+				--Re-enable scene redrawing if error occurs
 				enableSceneRedraw()
 			)
+
+			--Backup enable
+			enableSceneRedraw()
+
 		)
+
+		on EditSequences pressed do
+		(
+			--Open rollout from external file
+			fileIn PipeBoyAnimSetup
+		)
+
     )
 
 	rollout UI_RolloutGroup_Asset "Asset Settings"
@@ -735,7 +973,7 @@ rollout PipeBoy "PipeBoy"
 		(
 			dropdownlist IsType "Asset Type" items:#("Geometry", "Animation") width:125
 
-			checkbox meshGrouper "Mesh grouper" checked:true
+			checkbox meshGrouper "Mesh grouper" checked:false
 			checkbox generateLods "Generate lods" checked:false
 			spinner lodsAmount "Lods" range:[1,6,2] type:#integer width:50 pos:[125, 92]
 			editText FileExtension "File name extension"
@@ -751,12 +989,13 @@ rollout PipeBoy "PipeBoy"
 			IsType.selection = currentAssetSelected
 		)
 
-		on UI_RolloutGroup_Asset rolledUp State do (resizeWindow PipeBoy State UI_RolloutGroup_Asset)
+		on UI_RolloutGroup_Asset rolledUp State do (resizeWindow PipeBoy UI_RolloutGroup_Asset State)
 
 		on UI_RolloutGroup_Asset open do
 		(
 			UI_RolloutGroup_Asset.open = false
 		)
+
     )
 
 	rollout UI_RolloutGroup_General "General Settings"
@@ -783,7 +1022,7 @@ rollout PipeBoy "PipeBoy"
 			ZeroPivotToOrigin = newState
 		)
 
-		on UI_RolloutGroup_General rolledUp State do (resizeWindow PipeBoy State UI_RolloutGroup_General)
+		on UI_RolloutGroup_General rolledUp State do (resizeWindow PipeBoy UI_RolloutGroup_General State)
 
 		on UI_RolloutGroup_General open do
 		(
@@ -810,7 +1049,7 @@ rollout PipeBoy "PipeBoy"
 			UI_RolloutGroup_Project.open = false
 		)
 
-		on UI_RolloutGroup_Project rolledUp State do (resizeWindow PipeBoy State UI_RolloutGroup_Project)
+		on UI_RolloutGroup_Project rolledUp State do (resizeWindow PipeBoy UI_RolloutGroup_Project State)
 
 		on editProjectSettings pressed do
 		(
@@ -837,6 +1076,7 @@ rollout PipeBoy "PipeBoy"
 
 			currentProject.items = projectArray
 		)
+
     )
 
 	on PipeBoy open do
@@ -860,6 +1100,7 @@ rollout PipeBoy "PipeBoy"
 
 		PBS = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_Settings.ini")
 		PipeBoySettings = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_ProjectSettings.ms")
+		PipeBoyAnimSetup = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_AnimSetup.ms")
 
 		--Setup interface data
 		LoadVariables()

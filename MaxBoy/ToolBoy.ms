@@ -5,6 +5,8 @@ macros and tools to speed up general tasks.
 
 --Start ToolBoy--
 (
+include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
+
 rollout ToolBoy "ToolBoy"
 (
 	--Global settings
@@ -20,7 +22,20 @@ rollout ToolBoy "ToolBoy"
 
 	subRollout UI_Base width:190 height:70 pos:[-1,-1]
 
-	include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
+	--Window resize function for rollouts [ Override ]
+	fn resizeWindow tTarget tRollout tState =
+	(
+	    if (tState == true) then
+	    (
+			UI_Base.height += tRollout.height
+			tTarget.height += tRollout.height
+	    )
+	    else
+	    (
+			UI_Base.height -= tRollout.height
+			tTarget.height -= tRollout.height
+	    )
+	)
 
 	rollout UI_Settings "General"
 	(
@@ -29,7 +44,8 @@ rollout ToolBoy "ToolBoy"
 			checkbox usePrefix "Use Prefix" toolTip:"Use prefix to select objects?"
 			edittext bPrefix "Bone prefix:" text:"b_" width:125
 			edittext cPrefix "Controller prefix:" text:"c_" width:125
-			button SelectChildren "Select children"
+			button SelectChildren "Select children" width:150
+			button AnimBaker "Anim Baker" width:150
 		)
 
 		group "Misc"
@@ -49,7 +65,7 @@ rollout ToolBoy "ToolBoy"
 		)
 
 		--Handle window scaling when rolled up
-		on UI_Settings rolledUp State do (resizeWindow ToolBoy State UI_Settings)
+		on UI_Settings rolledUp State do (resizeWindow ToolBoy UI_Settings State)
 
 		on usePrefix changed State do
 		(
@@ -78,7 +94,7 @@ rollout ToolBoy "ToolBoy"
 			(
 				selectionArray = #($)
 
-				select(getChildren())
+				select(getChildren(selection[1]))
 
 				join selectionArray selection
 
@@ -89,6 +105,13 @@ rollout ToolBoy "ToolBoy"
 			(
 				messageBox "Multiple or no nodes are not supported!" title:"Error..."
 			)
+		)
+
+		on AnimBaker pressed do
+		(
+			local animBakerPath = ((pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\ToolBoy_AnimBaker.ms")) as string
+
+			fileIN animBakerPath
 		)
 
 		on GiveDummies pressed do
@@ -326,7 +349,7 @@ rollout ToolBoy "ToolBoy"
 		)
 
 		--Handle window scaling when rolled up
-		on UI_Rigging rolledUp State do (resizeWindow ToolBoy State UI_Rigging)
+		on UI_Rigging rolledUp State do (resizeWindow ToolBoy UI_Rigging State)
 
 		on AddControllers pressed  do
 		(
@@ -716,7 +739,7 @@ rollout ToolBoy "ToolBoy"
 			pickbutton InstanceRef "Instance Object" width:150 align:#left
 		)
 
-		on UI_Mesh rolledUp State do (resizeWindow ToolBoy State UI_Mesh)
+		on UI_Mesh rolledUp State do (resizeWindow ToolBoy UI_Mesh State)
 
 		on ResetXforms pressed do
 		(

@@ -72,21 +72,6 @@ fn RootParent tNode =
 	return tParent
 )
 
---Window resize function for rollouts
-fn resizeWindow tTarget tState tRollout =
-(
-    if (tState == true) then
-    (
-		UI_Base.height += tRollout.height
-		tTarget.height += tRollout.height
-    )
-    else
-    (
-		UI_Base.height -= tRollout.height
-		tTarget.height -= tRollout.height
-    )
-)
-
 --Standardized copying function
 fn CopyNodes tArray type &ContainerArray =
 (
@@ -185,28 +170,32 @@ fn collectObjects prefixIndex =
 --Selects all children under supplied node
 fn getChildren obj =
 (
-	if (obj == unsupplied) do (obj = selection[1])
+	max create mode
 
-	--Return if obj is null
-	if (obj == undefined) do
+	with redraw off
 	(
-		printc("getChildren:: obj is null!")
-		return()
-	)
+		if (obj == unsupplied) do (obj = selection[1])
 
-	--Select children can also be done with "Cntrl + PgDown"
-	clearSelection()
-	select obj
-	--execute ("$'" + (obj.name) + "'/*/.../*")
-
-	for obj in selection do
-	(
-		if obj.children != undefined do
+		--Return if obj is null
+		if (obj == undefined) do
 		(
-			selectmore obj.children
+			printc("getChildren:: obj is null!")
+			return()
+		)
+
+		--Select children can also be done with "Cntrl + PgDown"
+		clearSelection()
+		select obj
+		--execute ("$'" + (obj.name) + "'/*/.../*")
+
+		for obj in selection do
+		(
+			if obj.children != undefined do
+			(
+				selectmore obj.children
+			)
 		)
 	)
-
 	return (selection as array)
 )
 
@@ -536,4 +525,95 @@ fn getRelativeScale obj =
 	local factor = (factor_1 + factor_2) / 2
 
 	return factor
+)
+
+--Return a programmatic path from "regular" explorer path string
+fn convertToPath convertPath =
+(
+	local splitPath = filterString convertPath "\\"
+
+	local filteredPath = ""
+
+	for i = 1 to splitPath.count do
+	(
+		filteredPath = (filteredPath + splitPath[i])
+
+		if (i != splitPath.count) do
+			filteredPath += ("\\\\")
+	)
+
+	return filteredPath
+)
+
+--Fetch script location
+fn getScriptLocation srcName scrName =
+(
+	local ScriptName = (scrName + ".ms")
+	local FileName = srcName
+
+	local FilteredPath = replace FileName (FileName.count - ScriptName.count + 1) (ScriptName.count) ""
+
+	return FilteredPath
+)
+
+fn LocateAccessory pre:"" =
+(
+	local allObjects = $*
+
+	if (pre != "") do
+	(
+		local prefixStr = ((pre as string) + "*")
+		--local prefixStr = "AimPos"
+
+		--Check prefix
+		for o in allObjects do
+		(
+			local searchResult = MatchPattern o.name pattern: prefixStr ignoreCase: false
+
+			if (searchResult == true) do
+			(
+				--select o
+				--print("Found rig based on prefix >> " + o.name)
+
+				return(o)
+			)
+		)
+	)
+
+	--print("Didn't find anything from prefix...")
+
+	--Try and find based on naming
+	for o in allObjects do
+	(
+		local intelSearch = #("weapon", "item", "accessory", "w_", "weap_", "wpn_", "itm_")
+
+		for str in intelSearch do
+		(
+			local searchResult = MatchPattern o.name pattern: ((str as string) + "*") ignoreCase: true
+
+			if (searchResult == true) do
+			(
+				if (o.parent == undefined) do
+				(
+					continue()
+					--print("Found object, but didn't have root >> " + o.name)
+				)
+
+				--Check if parent is named as potential root
+				local parentResult = MatchPattern o.parent.name pattern: ("root" + "*") ignoreCase: true
+
+				if (parentResult == true) then
+				(
+					--print("Found rig in intelSearch >> " + o.name)
+
+					--select o.parent
+					return(o.parent)
+				)
+				else
+				(
+					--print("Found object, but didn't have root >> " + o.name)
+				)
+			)
+		)
+	)
 )
