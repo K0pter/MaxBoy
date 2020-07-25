@@ -24,22 +24,22 @@ fn SequenceArrayToNames =
 
 	for i = 1 to SequenceArray.count do
 	(
-		append SequenceNames SequenceArray[i].s_Name
+		append SequenceNames SequenceArray[i].sequenceName
 	)
 
 	return SequenceNames
 )
 
---Local sequence struct
-struct Sequence
+--local sequence struct
+struct sequence
 (
-	s_Name 				= "Null",   --String
-	s_ExportAccessory	= false, 	--booleanClass
-	s_Range_Start 		= 0, 		--Integer
-	s_Range_End 		= 1 		--Integer
+	sequenceName		= "null",   --string
+	exportAccessory		= false, 	--booleanclass
+	range_start 		= 0, 		--integer
+	range_end 			= 1 		--integer
 )
 
---Save to ini file
+--Save to .boi file
 fn SaveSettings  =
 (
 	gc()
@@ -68,10 +68,10 @@ fn SaveSettings  =
 			--print("Saved sequence << " + s.s_Name)
 
 			format ("[PipSeq_" + (i as string) + "]" + "\n") to:sFile
-			format (s.s_Name as string + "\n") to:sFile
-			format (s.s_ExportAccessory as string + "\n") to:sFile
-			format (s.s_Range_Start as string + "\n") to:sFile
-			format (s.s_Range_End as string + "\n") to:sFile
+			format (s.sequenceName as string + "\n") to:sFile
+			format (s.exportAccessory as string + "\n") to:sFile
+			format (s.range_start as string + "\n") to:sFile
+			format (s.range_end as string + "\n") to:sFile
 			format ("[PipSeq_END]\n\n") to:sFile
 
 			--format (s as string + "\n") to:sFile
@@ -140,7 +140,7 @@ fn LoadSettings =
 			    print(">" + (checkCurrent) + "< re: " + r_fend as string)
 				*/
 
-				local loadSequence = Sequence s_Name:(r_name) s_ExportAccessory:r_expa s_Range_Start:r_fsta s_Range_End:r_fend
+				local loadSequence = Sequence sequenceName:(r_name) exportAccessory:r_expa range_start:r_fsta range_end:r_fend
 
 				/*
 				print(loadSequence.s_Name + "< n: " + loadSequence.s_Name as string)
@@ -215,19 +215,19 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:275
 		)
 		else
 		(
-			local newSequence = Sequence s_Name:"Null" s_ExportAccessory:false s_Range_Start:0 s_Range_End:0
+			local newSequence = Sequence sequenceName:"Null" exportAccessory:false range_start:0 range_end:0
 
 			SequenceArray = #(newSequence)
 
-			ui_sequences.items = #(newSequence.s_Name as string)
+			ui_sequences.items = #(newSequence.sequenceName as string)
 		)
 
 		--Update relative parameters
 		if (ui_sequences.selection != 0 AND ui_sequences.selection <= SequenceArray.count) do
 		(
-			ui_ExportAccessory.state = SequenceArray[ui_sequences.selection].s_ExportAccessory
-			ui_range_start.value = SequenceArray[ui_sequences.selection].s_Range_Start
-			ui_range_end.value = SequenceArray[ui_sequences.selection].s_Range_End
+			ui_ExportAccessory.state = SequenceArray[ui_sequences.selection].exportAccessory
+			ui_range_start.value = SequenceArray[ui_sequences.selection].range_start
+			ui_range_end.value = SequenceArray[ui_sequences.selection].range_end
 		)
 	)
 
@@ -294,7 +294,7 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:275
 	on ui_sequences entered newName do
 	(
 		ui_sequences.selected = newName
-		SequenceArray[ui_sequences.selection].s_Name = newName
+		SequenceArray[ui_sequences.selection].sequenceName = newName
 
 		SaveSettings()
 	)
@@ -306,21 +306,21 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:275
 
 	on ui_range_start changed val do
 	(
-		SequenceArray[ui_sequences.selection].s_Range_Start = ui_range_start.value
+		SequenceArray[ui_sequences.selection].range_start = ui_range_start.value
 
 		SaveSettings()
 	)
 
 	on ui_range_end changed val do
 	(
-		SequenceArray[ui_sequences.selection].s_Range_End = ui_range_end.value
+		SequenceArray[ui_sequences.selection].range_end = ui_range_end.value
 
 		SaveSettings()
 	)
 
 	on ui_ExportAccessory changed nState do
 	(
-		SequenceArray[ui_sequences.selection].s_ExportAccessory = nState
+		SequenceArray[ui_sequences.selection].exportAccessory = nState
 
 		SaveSettings()
 	)
@@ -350,17 +350,25 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:275
 
 rollout rlt_addSequence "Add Sequence" width:360 height:60
 (
-	local tempNameText = replace (maxFileName as string) (maxFileName.count - 3) 4 ""
-
-	edittext sequence_name "Sequence name:" text:tempNameText fieldWidth:250 labelOnTop:true
+	edittext sequence_name "Sequence name:" text:"" fieldWidth:250 labelOnTop:true
 	button okButton "Add" pos:[268,21]
 	button cancelButton "Cancel" pos:[305,21]
+
+	on rlt_addSequence open do
+	(
+		if (maxFileName != "") do
+		(
+			local tempNameText = replace (maxFileName as string) (maxFileName.count - 3) 4 ""
+
+			sequence_name.text = tempNameText
+		)
+	)
 
 	on okButton pressed do
 	(
 		if (sequence_name.text != "") then
 		(
-			local newSequence = Sequence s_Name:(sequence_name.text) s_ExportAccessory:false s_Range_Start:0 s_Range_End:100
+			local newSequence = Sequence sequenceName:(sequence_name.text) exportAccessory:false range_start:0 range_end:100
 
 			append SequenceArray newSequence
 
@@ -375,7 +383,7 @@ rollout rlt_addSequence "Add Sequence" width:360 height:60
 		)
 		else
 		(
-			messageBox "Enter a name" title:"Are you dumb?"
+			messageBox "Enter a name" title:"Don't forget to enter a name!"
 		)
 
 		PipeBoy_AnimSetup.TryUpdateUI()

@@ -12,7 +12,7 @@
 
 [Installation]
 
-1. Place the "MaxBoy" folder into your max's "scripts" folder (usually at: "C:\Program Files\Autodesk\3ds Max 2017\scripts")
+1. Place the "MaxBoy" folder into your max's "scripts" folder (usually at: "C:\Program Files\Autodesk\3ds Max 20XX\scripts")
 
 2. Either drag in "MaxBoy_Installer.ms" into the max viewport- or if that doesn't work, run the same script by going to "Max's toolbar" -> "Scripting" -> "Run Script..." (It will print in the console to confirm)
 

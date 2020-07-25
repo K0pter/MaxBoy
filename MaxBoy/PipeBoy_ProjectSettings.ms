@@ -37,6 +37,8 @@ struct LocalSettings
 	s_ac_Prefix, 		--String
 	s_ac_FindIntelligent,--booleanClass
 	s_ac_LockRoot, 		--booleanClass
+	s_ac_LockRootDepth, --booleanClass
+
 	s_ac_FilePrefix,	--String
 	s_ac_FileSuffix,	--String
 	s_ac_RemoveFilePre,	--Integer
@@ -103,6 +105,8 @@ fn SaveSettings query: =
 		setINISetting PBS pro "s_ac_Prefix" 			(LS.s_ac_Prefix)
 		setINISetting PBS pro "s_ac_FindIntelligent"	(LS.s_ac_FindIntelligent as string)
 		setINISetting PBS pro "s_ac_LockRoot" 			(LS.s_ac_LockRoot as string)
+		setINISetting PBS pro "s_ac_LockRootDepth" 		(LS.s_ac_LockRootDepth as string)
+
 		setINISetting PBS pro "s_ac_FilePrefix" 		(LS.s_ac_FilePrefix)
 		setINISetting PBS pro "s_ac_FileSuffix" 		(LS.s_ac_FileSuffix)
 		setINISetting PBS pro "s_ac_RemoveFilePre" 		(LS.s_ac_RemoveFilePre as string)
@@ -160,6 +164,8 @@ fn LoadSettings =
 			LS.s_ac_Prefix 			= (getINISetting PBS pro "s_ac_Prefix")
 			LS.s_ac_FindIntelligent = (getINISetting PBS pro "s_ac_FindIntelligent") as booleanClass
 			LS.s_ac_LockRoot		= (getINISetting PBS pro "s_ac_LockRoot") as booleanClass
+			LS.s_ac_LockRootDepth	= (getINISetting PBS pro "s_ac_LockRootDepth") as Integer
+
 			LS.s_ac_FilePrefix 		= (getINISetting PBS pro "s_ac_FilePrefix")
 			LS.s_ac_FileSuffix 		= (getINISetting PBS pro "s_ac_FileSuffix")
 			LS.s_ac_RemoveFilePre 	= (getINISetting PBS pro "s_ac_RemoveFilePre") as Integer
@@ -179,7 +185,7 @@ fn LoadSettings =
 )
 
 --Main UI window--
-rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:524
+rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:410
 (
 	group "Project"
 	(
@@ -205,22 +211,25 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:524
 		--dropdownlist ui_ForwardAxis "Axis Forward" items:#("(+) X-Forward", "(-) X-Forward", "(+) Y-Forward", "(-) Y-Forward") width:125
 	)
 
+	/*
 	group "Animation"
 	(
 		edittext ui_BonePrefix "Bone prefix:" text:"b_" width: 200 align:#left
 		edittext ui_AlignPrefix "Align prefix:" text:"align_" width: 200 align:#left
 		edittext ui_BoneRoot "Root bone name:" text:"b_root" width: 200 align:#left
 	)
+	*/
 
 	group "Accessory"
 	(
 		edittext ui_ac_folder "Accessory folder:" text:"WPN" width: 200 align:#left
-		edittext ui_ac_prefix "Accessory prefix:" text:"WPN_" width: 200 align:#left
-		checkbox ui_ac_findIntelligent "Locate accessory intelligently" checked:true tooltip:"Locks accessory root bone when exporting animation"
-		checkbox ui_ac_lockRoot "Lock accessory root bone" tooltip:"Locks accessory root bone when exporting animation"
+		--edittext ui_ac_prefix "Accessory prefix:" text:"WPN_" width: 200 align:#left
+		--checkbox ui_ac_findIntelligent "Locate accessory intelligently" checked:true tooltip:"Locate accesory based on a set of naming conventions"
+		checkbox ui_ac_lockRoot "Zero accessory root" tooltip:"Locks accessory root bone to origo when exporting animation"
+		spinner ui_ac_lockRootDepth "Zero hierarchy depth: " type:#integer align:#left width: 75 range:[0, 100, 2] tooltip:"How deep zeroing goes in hierarchy"
 
-		edittext ui_ac_filePrefix "Accessory file name prefix:" text:"FPP_WPN_" width: 200 align:#left
-		edittext ui_ac_fileSuffix "Accessory file name suffix:" text:"" width: 200 align:#left
+		edittext ui_ac_filePrefix "File name prefix:" text:"FPP_WPN_" width: 200 align:#left
+		edittext ui_ac_fileSuffix "File name suffix:" text:"" width: 200 align:#left
 		spinner ui_ac_removeFilePre "Remove chars pre: " type:#integer align:#left width: 75 range:[0, 100, 8]
 		spinner ui_ac_removeFileSuf "Remove chars suf: " type:#integer align:#left width: 75 range:[0, 100, 0]
 	)
@@ -240,14 +249,16 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:524
 		--ui_ForwardAxis.selection 	= LS.s_ForwardAxis
 		ui_MeshGroupPrefix.text  	= LS.s_MeshGroupPrefix
 
-		ui_BonePrefix.text 		 	= LS.s_BonePrefix
-		ui_BoneRoot.text 		 	= LS.s_BoneRoot
-		ui_AlignPrefix.text 	 	= LS.s_AlignPrefix
+		--ui_BonePrefix.text 		 	= LS.s_BonePrefix
+		--ui_BoneRoot.text 		 	= LS.s_BoneRoot
+		--ui_AlignPrefix.text 	 	= LS.s_AlignPrefix
 
 		ui_ac_folder.text 			= LS.s_ac_Folder
-		ui_ac_prefix.text 		 	= LS.s_ac_Prefix
-		ui_ac_findIntelligent.state	= LS.s_ac_FindIntelligent
+		--ui_ac_prefix.text 		 	= LS.s_ac_Prefix
+		--ui_ac_findIntelligent.state	= LS.s_ac_FindIntelligent
 		ui_ac_lockRoot.state 	 	= LS.s_ac_LockRoot
+		ui_ac_lockRootDepth.value 	= LS.s_ac_LockRootDepth
+
 		ui_ac_filePrefix.text 		= LS.s_ac_FilePrefix
 		ui_ac_fileSuffix.text 		= LS.s_ac_FileSuffix
 		ui_ac_removeFilePre.value 	= LS.s_ac_RemoveFilePre
@@ -278,14 +289,16 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:524
 		--fChanged ui_ForwardAxis.selection "s_ForwardAxis" Integer
 		fChanged ui_MeshGroupPrefix.text  	"s_MeshGroupPrefix" string
 
-		fChanged ui_BonePrefix.text 	  	"s_BonePrefix" string
-		fChanged ui_BoneRoot.text 		  	"s_BoneRoot" string
-		fChanged ui_AlignPrefix.text 	  	"s_AlignPrefix" string
+		--fChanged ui_BonePrefix.text 	  	"s_BonePrefix" string
+		--fChanged ui_BoneRoot.text 		  	"s_BoneRoot" string
+		--fChanged ui_AlignPrefix.text 	  	"s_AlignPrefix" string
 
 		fChanged ui_ac_folder.text 	  		"s_ac_Folder" string
-		fChanged ui_ac_prefix.text 	  		"s_ac_Prefix" string
-		fChanged ui_ac_findIntelligent.state "s_ac_FindIntelligent" booleanClass
-		fChanged ui_ac_lockRoot.state 	  	"s_ac_LockRoot" BooleanClass
+		--fChanged ui_ac_prefix.text 	  		"s_ac_Prefix" string
+		--fChanged ui_ac_findIntelligent.state "s_ac_FindIntelligent" booleanClass
+		fChanged ui_ac_lockRoot.state 	  	 "s_ac_LockRoot" BooleanClass
+		fChanged ui_ac_lockRootDepth.value 	 "s_ac_LockRootDepth" Integer
+
 		fChanged ui_ac_filePrefix.text 	  	"s_ac_FilePrefix" string
 		fChanged ui_ac_fileSuffix.text 		"s_ac_FileSuffix" string
 		fChanged ui_ac_removeFilePre.value 	"s_ac_RemoveFilePre" Integer
@@ -437,6 +450,7 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:524
 	*/
 
 	--[ Animation ]--
+	/*
 	on ui_BonePrefix changed newString do
 	(
 		LS.s_BonePrefix = newString
@@ -451,6 +465,7 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:524
 	(
 		LS.s_BoneRoot = newString
 	)
+	*/
 
 	--[ Accesory ]--
 	on ui_ac_folder changed newString do
@@ -458,19 +473,28 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:524
 		LS.s_ac_Folder = newString
 	)
 
+	/*
 	on ui_ac_prefix changed newString do
 	(
 		LS.s_ac_Prefix = newString
 	)
+	*/
 
+	/*
 	on ui_ac_findIntelligent changed newState do
 	(
 		LS.s_ac_FindIntelligent = newState
 	)
+	*/
 
 	on ui_ac_lockRoot changed newState do
 	(
 		LS.s_ac_LockRoot = newState
+	)
+
+	on ui_ac_lockRootDepth changed newVal do
+	(
+		LS.s_ac_LockRootDepth = newVal
 	)
 
 	on ui_ac_filePrefix changed newString do

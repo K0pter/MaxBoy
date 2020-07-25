@@ -1,6 +1,6 @@
 
 (
-rollout Baker "AnimBaker v8" width:200 height: 256 (
+rollout Baker "AnimBaker v10" width:200 height: 240 (
 
 	global transformList = #();
 	global nodeList = #();
@@ -22,9 +22,11 @@ rollout Baker "AnimBaker v8" width:200 height: 256 (
 		button BakeObject "[  BAKE  ]" width:175 align:#center
 		pickbutton refPick "<< Pick Reference >>" width:175 align:#center
 
-		checkbox bakeToDummy "  -  Bake to dummy" toolTip:"Bake animation data down to a separate dummy object"
-		checkbox useRef "  -  Use reference" toolTip:"Lock object to reference"
-		checkbox useStartRef "  -  Start as ref" toolTip:"Use starting frame as reference and lock object to it. (Good for IK handles)"
+		dropdownlist bakeMethod "Method" items:#("Reference", "Dummy", "Start") toolTip:"Choose which bake method to use \n\n Reference :: Align to reference node \n Dummy :: Bake to new dummy node \n Start :: Use start frame as anchor point"
+
+		--checkbox useRef "  -  Use reference" toolTip:"Lock object to reference" checked:true
+		--checkbox bakeToDummy "  -  Bake to dummy" toolTip:"Bake animation data down to a separate dummy object"
+		--checkbox useStartRef "  -  Start as ref" toolTip:"Use starting frame as reference and lock object to it. (Good for IK handles)"
 		checkbox ReverseAnimation "  -  Reverse" checked:false
 		checkbox KeepControllers "  -  Keep controllers" checked:false
 	)
@@ -136,13 +138,31 @@ rollout Baker "AnimBaker v8" width:200 height: 256 (
 	)
 
 	--Bake down object process
-	on BakeObject pressed do (
+	on BakeObject pressed do
+	(
 		--checkGot = selection
 		--pleb = $selection[1]
 		--ref = $selection[2]
 
 		if $ != undefined then
 		(
+			for o in selection do
+			(
+				try
+				(
+					--Test if we can fetch something form a CAT specific controller handle
+					local fetchController = o.TMcontroller
+
+					messagebox("This doesn't support CAT controllers yet!") title:"Error!"
+					return()
+				)
+				catch
+				(
+					--Whatever
+				)
+			)
+
+
 			with redraw off
 			(
 			try
@@ -176,7 +196,7 @@ rollout Baker "AnimBaker v8" width:200 height: 256 (
 						(
 							if (collectedFirstFrameData == false) do
 							(
-								if (useStartRef.state == true) do
+								if (bakeMethod.selection == 3) do
 								(
 									--Collect first frame transform data and store into array
 									at time range_start.value
@@ -213,7 +233,7 @@ rollout Baker "AnimBaker v8" width:200 height: 256 (
 				)
 
 				--Are we baking to dummy or no? Reset controllers or make dummies.
-				if (bakeToDummy.state == false) then
+				if (bakeMethod.selection != 2) then
 				(
 					--Fix object controllers--
 					for obj in selectionArray do
@@ -223,12 +243,20 @@ rollout Baker "AnimBaker v8" width:200 height: 256 (
 						try (classOf obj.transform.controller) catch (testResult = false) --Throws error if it's a bad cast
 
 						--print("TestResult: " + testResult as string)
+						print(classOf obj.transform.controller)
 
 						--Did we pass the test?
 						if (testResult == true) do
 						(
+							local testController = false
+							local controllersToTest = #(PRS, Link_Constraint, transform_script)
+
+							for c in controllersToTest do
+							(
+								if (classOf obj.transform.controller == c) do ( testController = true )
+							)
 							--Only do reset operation if controller is of type PRS (Position/Rotation/Scale)
-							if (classOf obj.transform.controller == PRS) do
+							if (testController == true) do
 							(
 								if (KeepControllers.state == false) do
 								(
@@ -306,7 +334,7 @@ rollout Baker "AnimBaker v8" width:200 height: 256 (
 							local getPackageFrames = getPackage[2][i]
 
 							--Get object based on name if we're baking to a dummy
-							if (bakeToDummy.state == true) do
+							if (bakeMethod.selection == 2) do
  								getPackageObject = getNodeByName("baked_" + getPackage[1][i].name)
 
 							--print(("Selection: " + getPackageObject as string) + (" at frame: " + t as string))
@@ -316,20 +344,12 @@ rollout Baker "AnimBaker v8" width:200 height: 256 (
 							(
 								animate on
 
-								if (useStartRef.state == true) then
+								case bakeMethod.selection of
 								(
-									getPackageObject.transform = StartFrameTransforms[i]
+									1: ( getPackageObject.transform = refPick.object.transform ) --Ref
+									2: ( getPackageObject.transform = getPackageFrames ) --Dummy
+									3: ( getPackageObject.transform = StartFrameTransforms[i] ) --Start
 								)
-								else if (useRef.state == true) then
-								(
-									getPackageObject.transform = refPick.object.transform
-								)
-								else
-								(
-									getPackageObject.transform = getPackageFrames
-								)
-
-								--addNewKey getPackageObject t
 							)
 						)
 					)
@@ -345,6 +365,8 @@ rollout Baker "AnimBaker v8" width:200 height: 256 (
 			(
 				enableSceneRedraw()
 				messagebox("Something messed up!") title:"Error!"
+
+				throw()
 			)
 			)
 

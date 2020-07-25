@@ -8,7 +8,7 @@ fn printc tString =
 	--Print as string to print arrays and other things too
 	try
 	(
-		if (PrintToConsole == true) do (print(tString as string))
+		if (PrintToConsole == true) do (print(tString))
 	)catch(print("Print is goofed"))
 	--if (s_print == true) do (print(tString as string))
 )
@@ -73,53 +73,36 @@ fn RootParent tNode =
 )
 
 --Standardized copying function
-fn CopyNodes tArray type &ContainerArray =
+fn CopyNodes collection:(selection as array) type:#copy uniqueNames:false =
 (
-	--Copies node(s)
-	maxOps.cloneNodes tArray cloneType:type newNodes:&tCopies #nodialog
-
-	aCopies = tCopies as array
-
-	--Rename copied objects names to original's names
-	for i = 1 to aCopies.count do
+	if (classOf collection == Array) then
 	(
-		aCopies[i].name = tArray[i].name
+		--Copies node(s)
+		maxOps.cloneNodes (collection as array) cloneType:type newNodes:&tCopies #nodialog
+	)
+	else
+	(
+		--Copies node
+		maxOps.cloneNodes (collection as array) cloneType:type newNodes:&tCopies #nodialog
 	)
 
-	--Returns nodes in supplied container
-	ContainerArray = aCopies
-)
+	local aCopies = tCopies as array
 
---Collects nodes based on prefix
-fn getPrefixObjects prefix =
-(
-	free nodeList
-
-	local storedSelection = (selection as array)
-	local tempArray = #()
-
-	select $*
-
-	for obj in selection do
+	--Rename copied objects names to original's names
+	if (uniqueNames == false) do
 	(
-		if matchPattern obj.name pattern:((prefix as string) + "*") == true do
+		for i = 1 to aCopies.count do
 		(
-			append tempArray obj
-			--print("Appended " + obj.name as string + " to list.")
+			aCopies[i].name = collection[i].name
 		)
 	)
 
-	local tArray = for i in tempArray collect i
-	nodeList = for i in tempArray collect i
-
-	clearSelection()
-	select(storedSelection)
-
-	return tArray
+	--Returns nodes in supplied container
+	return(aCopies)
 )
 
 --Generic node collecting form with prefix function
-fn collectObjects prefixIndex =
+fn collectObjects prefix:"" =
 (
 	--print("Cleaning existing node list")
 	free nodeList
@@ -130,7 +113,7 @@ fn collectObjects prefixIndex =
 	(
 		if (s_usePrefix == true) then
 		(
-			tempArray = getPrefixObjects(prefixIndex)
+			tempArray = getPrefixObjects pre:prefix
 		)
 		else
 		(
@@ -138,7 +121,7 @@ fn collectObjects prefixIndex =
 
 			if (tryAgain == true) then
 			(
-				tempArray = getPrefixObjects(prefixIndex)
+				tempArray = getPrefixObjects pre:prefix
 
 				if (tempArray.count == 0) do
 				(
@@ -168,35 +151,71 @@ fn collectObjects prefixIndex =
 )
 
 --Selects all children under supplied node
-fn getChildren obj =
+fn getChildren obj: =
 (
 	max create mode
 
+	local selectedChildren = #()
+
 	with redraw off
 	(
-		if (obj == unsupplied) do (obj = selection[1])
-
-		--Return if obj is null
-		if (obj == undefined) do
+		if (obj == unsupplied) then
 		(
-			printc("getChildren:: obj is null!")
-			return()
-		)
+			--Sort selection to hierarchy and get top parent
+			local sortArr = selection
+			local indexArr = #()
 
-		--Select children can also be done with "Cntrl + PgDown"
-		clearSelection()
-		select obj
-		--execute ("$'" + (obj.name) + "'/*/.../*")
+			sortToHierarchy &sortArr &indexArr
 
-		for obj in selection do
-		(
-			if obj.children != undefined do
+			if (isValidNode sortArr[1]) then
 			(
-				selectmore obj.children
+				append selectedChildren sortArr[1]
+			)
+			else
+			(
+				printc("GetChildren :: Couln't proceed, hierarchy top is undefined")
+				return()
 			)
 		)
+		else
+		(
+			if (isValidNode obj) then
+			(
+				append selectedChildren obj
+			)
+			else
+			(
+				printc("GetChildren :: Couln't proceed, obj is undefined")
+				return()
+			)
+		)
+
+		do
+		(
+			local nn = false
+
+			for s in selectedChildren do
+			(
+				if (isValidNode s) do
+				(
+					for c in s.children do
+					(
+						if (isValidNode c) do
+						(
+							if (appendIfUnique selectedChildren c) do
+							(
+								--If new node was added to seleciton, keep searching
+								nn = true
+							)
+						)
+					)
+				)
+			)
+		)
+		while ( nn == true )
+
+		return selectedChildren
 	)
-	return (selection as array)
 )
 
 --Cleans undefined entries out of an array
@@ -397,7 +416,7 @@ fn getHierarchy tArray =
 		--print("Obj: " + tArray[i] as string)
 		--print("Children: " + sortArray[i] as string)
 
-		findItem
+		--findItem
 	)
 
 	--print(sortArray)
@@ -556,25 +575,21 @@ fn getScriptLocation srcName scrName =
 	return FilteredPath
 )
 
-fn LocateAccessory pre:"" =
+--Locate accessory based on a couple parameters
+fn LocateAccessory sel:$* pre:"" returnChild:false =
 (
-	local allObjects = $*
+	local searchSelection = sel
 
 	if (pre != "") do
 	(
-		local prefixStr = ((pre as string) + "*")
-		--local prefixStr = "AimPos"
-
 		--Check prefix
-		for o in allObjects do
+		for o in searchSelection do
 		(
-			local searchResult = MatchPattern o.name pattern: prefixStr ignoreCase: false
+			local searchResult = MatchPattern o.name pattern:(pre as string + "*") ignoreCase: false
 
 			if (searchResult == true) do
 			(
-				--select o
 				--print("Found rig based on prefix >> " + o.name)
-
 				return(o)
 			)
 		)
@@ -583,13 +598,13 @@ fn LocateAccessory pre:"" =
 	--print("Didn't find anything from prefix...")
 
 	--Try and find based on naming
-	for o in allObjects do
+	for o in searchSelection do
 	(
-		local intelSearch = #("weapon", "item", "accessory", "w_", "weap_", "wpn_", "itm_")
+		local intelSearch = #("weapon", "item", "accessory", "w_", "weap_", "wpn_", "itm_", "weapon_bone")
 
 		for str in intelSearch do
 		(
-			local searchResult = MatchPattern o.name pattern: ((str as string) + "*") ignoreCase: true
+			local searchResult = MatchPattern o.name pattern: (str as string + "*") ignoreCase: true
 
 			if (searchResult == true) do
 			(
@@ -600,19 +615,122 @@ fn LocateAccessory pre:"" =
 				)
 
 				--Check if parent is named as potential root
-				local parentResult = MatchPattern o.parent.name pattern: ("root" + "*") ignoreCase: true
+				local parentResult = MatchPattern o.parent.name pattern:("root*") ignoreCase: true
 
 				if (parentResult == true) then
 				(
 					--print("Found rig in intelSearch >> " + o.name)
 
-					--select o.parent
-					return(o.parent)
+					if (returnChild == true) then
+					(
+						return(o)
+					)
+					else
+					(
+						return(o.parent)
+					)
 				)
 				else
 				(
 					--print("Found object, but didn't have root >> " + o.name)
 				)
+			)
+		)
+	)
+)
+
+--Locate and select all objects in collection or scene by supplied prefix
+fn getPrefixObjects pre:"" sel:$* allowMeshes:false =
+(
+	local searchSelection = sel
+	local nodeSelection = #()
+
+	for o in searchSelection do
+	(
+		if (matchPattern o.name pattern:(pre + "*")) do
+		(
+			if ((allowMeshes == false) and (superclassOf o != GeometryClass)) do
+			(
+				append nodeSelection o
+			)
+		)
+	)
+
+	return nodeSelection
+)
+
+--Custom freeze transform function
+fn freezetransforms obj =
+(
+  local curobj = obj
+
+  if classof curobj.rotation.controller != rotation_layer do
+  (
+    -- freeze rotation
+    curobj.rotation.controller = euler_xyz()
+    curobj.rotation.controller = rotation_list()
+    curobj.rotation.controller.available.controller = euler_xyz()
+
+    -- rename rotation controllers
+    curobj.rotation.controller.setname 1 "frozen rotation"
+    curobj.rotation.controller.setname 2 "zero euler xyz"
+
+    -- set the new rotation controller as the active controller
+    curobj.rotation.controller.setactive 2
+  )
+
+  if classof curobj.position.controller != position_layer do
+  (
+    -- freeze position
+    curobj.position.controller = bezier_position()
+    curobj.position.controller = position_list()
+    curobj.position.controller.available.controller = position_xyz()
+
+    -- rename rotation controllers
+    curobj.position.controller.setname 1 "frozen position"
+    curobj.position.controller.setname 2 "zero pos xyz"
+
+    -- set the new position controller as the active controller actual
+    curobj.position.controller.setactive 2
+
+    -- reset the position of the actual position controller to zero
+    curobj.position.controller[2].x_position = 0
+    curobj.position.controller[2].y_position = 0
+    curobj.position.controller[2].z_position = 0
+  )
+)
+
+--Get all meshes in supplied array
+fn filterformeshes &filterarray =
+(
+	local tempfilterarray = #()
+
+	for i = 1 to filterarray.count do
+	(
+		--if (classof filterarray[i] == editable_poly or classof filterarray[i] == editable_mesh) do
+		if (superclassof filterarray[i] == geometryclass) do
+		(
+			append tempfilterarray filterarray[i]
+		)
+	)
+
+	return tempfilterarray
+)
+
+--Remove prefixes from names
+fn stripPrefixes &collection =
+(
+	if (collection == undefined) do (print("StripPrefixes :: Collection is undefined!") return())
+
+	for o in collection do
+	(
+		if (isValidNode o) do
+		(
+			if (matchPattern o.name pattern:("*:*")) do
+			(
+				local i = findString o.name ":"
+
+				o.name = replace o.name 1 i ""
 			)
 		)
 	)

@@ -1,30 +1,43 @@
 /*////////////////////////////////////////////////
-PipeBoy is a pipeline tool that strives to improve
+pipeboy is a pipeline tool that strives to improve
 general workflows for game-related asset creation.
 ////////////////////////////////////////////////*/
 
---Start PipeBoy--
-(
---include "MaxBoy_Functions.ms"
-include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
+--start pipeboy--
+(--start local scope
+include "$userscripts\maxboy\maxboy_functions.ms"
 
---Initialize persistent globals
-persistent global currentProjectSelected, currentAssetSelected, PrintToConsole --Persistent handles
+--initialize persistent globals
+persistent global currentprojectselected
+persistent global currentassetselected
+persistent global printtoconsole
 
---Initialize globals
-global PipeBoy --Rollout class handle
-global PipeBoySettings --Pipeboy settings file
-global PipeBoyAnimSetup --Pipeboy animation setup file
-global PBS --Pipeboy settings .ini file handle
+--remember which panels are open
+persistent global ro_open_m
+persistent global ro_open_s
+persistent global ro_open_a
+persistent global ro_open_p
 
-global UnlinkFromParent
-global ZeroPivotToOrigin
+--misc menu settings memory
+persistent global p_meshGrouper
+persistent global p_generateLods
+persistent global p_useSequenceList
+persistent global p_exportAccessory
 
-global gName = (getFilenameFile  maxFileName)
-global exportGroup = #()
-global cleanGroup = #()
-global projectArray = #()
-global SequenceArray = #()
+--initialize globals
+global gname = (getfilenamefile  maxfilename)
+global pipeboy --rollout class handle
+global pipeboysettings --pipeboy settings file
+global pipeboyanimsetup --pipeboy animation setup file
+global pbs --pipeboy settings .ini file handle
+global allowStorePersistance --Delay setting persistent vars
+
+--Temp arrays
+global exportgroup = #()
+global exportResults = #()
+global cleangroup = #()
+global projectarray = #()
+global sequencearray = #()
 
 --Local settings struct
 struct LocalSettings
@@ -46,186 +59,212 @@ struct LocalSettings
 	s_ac_Prefix, 		--String
 	s_ac_FindIntelligent,--booleanClass
 	s_ac_LockRoot, 		--booleanClass
+	s_ac_LockRootDepth, --booleanClass
+
 	s_ac_FilePrefix,	--String
 	s_ac_FileSuffix,	--String
 	s_ac_RemoveFilePre,	--Integer
 	s_ac_RemoveFileSuf  --Integer
 )
 
---Local sequence struct
-struct Sequence
+--local sequence struct
+struct sequence
 (
-	s_Name 				= "Null",   --String
-	s_ExportAccessory	= false, 	--booleanClass
-	s_Range_Start 		= 0, 		--Integer
-	s_Range_End 		= 1 		--Integer
+	sequenceName		= "null",   --string
+	exportAccessory		= false, 	--booleanclass
+	range_start 		= 0, 		--integer
+	range_end 			= 1 		--integer
 )
 
---Initialize local settings "container" to easily store and update for later
-global LS = LocalSettings()
+--initialize local settings "container" to easily store and update for later
+global ls = localsettings()
 
-fn FreezeTransforms obj =
+fn cbf_updateui =
 (
-  local curObj = obj
-
-  if classOf curObj.rotation.controller != Rotation_Layer do
-  (
-    -- Freeze rotation
-    curObj.rotation.controller = Euler_Xyz()
-    curObj.rotation.controller = Rotation_List()
-    curObj.rotation.controller.available.controller = Euler_Xyz()
-
-    -- Rename rotation controllers
-    curObj.rotation.controller.SetName 1 "Frozen Rotation"
-    curObj.rotation.controller.SetName 2 "Zero Euler XYZ"
-
-    -- Set the new rotation controller as the active controller
-    curObj.rotation.controller.SetActive 2
-  )
-
-  if classOf curObj.position.controller != Position_Layer do
-  (
-    -- Freeze position
-    curObj.position.controller = Bezier_Position()
-    curObj.position.controller = Position_List()
-    curObj.position.controller.available.controller = Position_XYZ()
-
-    -- Rename rotation controllers
-    curObj.position.controller.SetName 1 "Frozen Position"
-    curObj.position.controller.SetName 2 "Zero Pos XYZ"
-
-    -- Set the new position controller as the active controller actual
-    curObj.position.controller.SetActive 2
-
-    -- Reset the position of the actual position controller to zero
-    curObj.position.controller[2].x_Position = 0
-    curObj.position.controller[2].y_Position = 0
-    curObj.position.controller[2].z_Position = 0
-  )
-)
-
-fn FilterForMeshes &FilterArray =
-(
-	local TempFilterArray = #()
-
-	for i = 1 to FilterArray.count do
+	if (ro_m != undefined) then
 	(
-		--if (ClassOf FilterArray[i] == Editable_Poly OR ClassOf FilterArray[i] == Editable_Mesh) do
-		if (superclassof FilterArray[i] == GeometryClass) do
-		(
-			append TempFilterArray FilterArray[i]
-		)
+		ro_m.anim_range_start.value = normtime 0
+		ro_m.anim_range_end.value = normtime 1
+	)
+	else
+	(
+		print("UpdateUI :: rollout main is undefined!")
 	)
 
-	return TempFilterArray
-)
+	if (ro_s != undefined) then
+	(
+		local itemList = #()
 
-fn LodGenerator &Obj Lods =
+		--Update sequence list UI
+		for s in sequencearray do
+		(
+			if (s != undefined) then
+			(
+				local ea = (s.exportAccessory as booleanClass)
+				local rs = (s.range_start as integer)
+				local re = (s.range_end as integer)
+
+				local seqName = s.sequenceName + (" [" + (rs as string) + " : " + (re as string) + "]")
+
+				if (ea) do ( append seqName " #A" )
+
+				append itemList seqName
+			)
+			else
+			(
+				print("UpdateUI :: Sequence is invalid!")
+			)
+		)
+
+		ro_s.list_sequences.items = itemList
+
+		--Update prefix lists
+		local searchSelection = $*
+
+		local prefixes = #("---")
+
+		for o in searchSelection do
+		(
+			local n = o.name
+
+			if (n != undefined) do
+			(
+				if (matchPattern n pattern:("*:*")) do
+				(
+					local i = findString n ":"
+					local pre = (substring n 1 i)
+
+					local tryFindPrefix = findItem prefixes pre
+
+					if (tryFindPrefix == 0) do
+					(
+						append prefixes pre
+					)
+				)
+			)
+		)
+
+		ro_s.rigCharacter.items = prefixes
+		ro_s.rigAccessory.items = prefixes
+	)
+	else
+	(
+		print("UpdateUI :: rollout sequence is undefined!")
+	)
+
+	printc("updated ui!")
+) global cbf_updateui_fn = cbf_updateui --store as global varaible
+
+
+fn lodgenerator &obj lods =
 (
-	clearSelection()
-	disableSceneRedraw()
+	clearselection()
+	disablesceneredraw()
 
 	try
 	(
 	with undo off
 	(
-		for lodObj in Obj do
+		for lodobj in obj do
 		(
 			try
 			(
-				local removeObjFromExport = findItem exportGroup lodObj
-				deleteItem exportGroup removeObjFromExport
+				local removeobjfromexport = finditem exportgroup lodobj
+				deleteitem exportgroup removeobjfromexport
 			)
 			catch
 			(
-				print("Couldn't delete object from export group!")
+				print("couldn't delete object from export group!")
 			)
 
-			maxOps.cloneNodes lodObj cloneType:#copy newNodes:&SafeLodCopy
-			append cleanGroup SafeLodCopy
-			tempLodObj = SafeLodCopy[1]
-			tempLodObj.name = ((TrimRight lodObj.name "0123456789") + "_LOD0")
 
-			append exportGroup tempLodObj
+			local safelodcopy = CopyNodes collection:lodobj
+			append cleangroup safelodcopy
 
-			for i = 1 to Lods do
+			templodobj = safelodcopy[1]
+			templodobj.name = ((trimright lodobj.name "0123456789") + "_lod0")
+
+			append exportgroup templodobj
+
+			for i = 1 to lods do
 			(
-				maxOps.cloneNodes tempLodObj cloneType:#copy newNodes:&SafeLodStepCopy
-				append cleanGroup SafeLodStepCopy
-				LodStepObject = SafeLodStepCopy[1]
-				LodStepObject.name = ((TrimRight tempLodObj.name "0123456789") +  i as string)
+				safelodstepcopy = CloneNodes collection:templodobj
 
-				Optimizer = ProOptimizer OptimizationMode:1
+				append cleangroup safelodstepcopy
+				lodstepobject = safelodstepcopy[1]
+				lodstepobject.name = ((trimright templodobj.name "0123456789") +  i as string)
 
-				Optimizer.VertexPercent = (75 / i)
-				Optimizer.KeepUV = true
-				Optimizer.LockUV = true
+				optimizer = prooptimizer optimizationmode:1
 
-				Optimizer.KeepNormals = true
-				Optimizer.KeepVC = true
+				optimizer.vertexpercent = (75 / i)
+				optimizer.keepuv = true
+				optimizer.lockuv = true
 
-				Optimizer.MergePoints = true
-				Optimizer.MergePointsThreshold = 5
+				optimizer.keepnormals = true
+				optimizer.keepvc = true
 
-				addmodifier LodStepObject Optimizer
+				optimizer.mergepoints = true
+				optimizer.mergepointsthreshold = 5
 
-				clearSelection()
-				select LodStepObject
+				addmodifier lodstepobject optimizer
 
-				$.modifiers[#ProOptimizer].Calculate = true
-				CollapseStack LodStepObject
-				ConvertTo LodStepObject Editable_Poly
+				clearselection()
+				select lodstepobject
 
-				--LodStepObject.position.y += (250 * i)
+				$.modifiers[#prooptimizer].calculate = true
+				collapsestack lodstepobject
+				convertto lodstepobject editable_poly
 
-				append exportGroup LodStepObject
+				--lodstepobject.position.y += (250 * i)
 
-				--free LodStepObject
+				append exportgroup lodstepobject
+
+				--free lodstepobject
 			)
 
-			--free tempLodObj
+			--free templodobj
 		)
 	)
 	)
-	catch(enableSceneRedraw())
+	catch(enablesceneredraw())
 
-	enableSceneRedraw()
-	clearSelection()
+	enablesceneredraw()
+	clearselection()
 )
 
---Load from .boi file
-fn LoadSequences =
+--load from .boi file
+fn loadsequences =
 (
-	--Call garbage collection to avoid I/O issues
-	--gc()
-	--print(getThisScriptFilename())
+	--call garbage collection to avoid i/o issues
+	gc()
 
-	--Remove file name's extension
-	local filteredName = replace (maxFileName as string) (maxFileName.count - 3) 4 ""
-
-	--Construct search path
-	local relativePath = ((getScriptLocation (getThisScriptFilename() as string) "PipeBoy") + "\\AnimSetup\\" + filteredName + ".boi")
-
-	--print("Relative: " + relativePath)
-
-	--Convert to valid search path
-	local filePath = convertToPath relativePath
-
-	--print("File: " + filePath)
-
-	if (doesFileExist filePath == false) do
+	if (maxfilename == "") do
 	(
-		print("No file to load from @ " + (filePath as string))
+		printc("Won't attempt sequence load - scene is unsaved")
 		return()
 	)
 
-	local oFile = openFile filePath mode:"r"
+	--remove file name's extension
+	local filteredname = replace (maxfilename as string) (maxfilename.count - 3) 4 ""
 
-	if (oFile != undefined) then
+	--construct search path
+	local relativepath = ((getscriptlocation (getthisscriptfilename() as string) "pipeboy") + "\\animsetup\\" + filteredname + ".boi")
+
+	--convert to valid search path
+	local filepath = converttopath relativepath
+
+	if (doesfileexist filepath == false) do
 	(
-		--print("Loading sequences from >> " + relativePath)
+		printc("no file to load from @ " + (filepath as string))
+		return()
+	)
 
-		SequenceArray = #()
+	local ofile = openfile filepath mode:"r"
+
+	if (ofile != undefined) then
+	(
+		--print("loading sequences from >> " + relativepath)
+		sequencearray = #()
 
 		local i = 0
 
@@ -233,886 +272,1041 @@ fn LoadSequences =
 		(
 			i += 1
 
-			local checkCurrent = ("[PipSeq_" + (i as string) + "]")
+			local checkcurrent = ("[PipSeq_" + (i as string) + "]")
 
-			local searchResult = skipToString oFile checkCurrent
+			local searchresult = skiptostring ofile checkcurrent
 
-			if (searchResult != undefined) do
+			if (searchresult != undefined) do
 			(
-				local skipPos = ((filePos oFile) + 2)
+				local skippos = ((filepos ofile) + 2)
 
-				--Start reading sequence data
-				seek oFile skipPos
+				--start reading sequence data
+				seek ofile skippos
 
-				--print("Name pos >" + (checkCurrent) + "< " + (filePos oFile as string))
+				local r_name = (readline ofile as string)
 
-				local r_name = (readLine oFile as string)
+				local r_expa = (readvalue ofile as booleanclass)
+				local r_fsta = (readvalue ofile as integer)
+				local r_fend = (readvalue ofile as integer)
 
-				--print("Post line read: " + filePos oFile as string)
+				local loadsequence = sequence sequenceName:(r_name) exportAccessory:r_expa range_start:r_fsta range_end:r_fend
 
-			    --print("Bool pos >" + (checkCurrent) + "< " + (filePos oFile as string))
-
-				local r_expa = (readValue oFile as booleanClass)
-
-				local r_fsta = (readValue oFile as integer)
-
-				local r_fend = (readValue oFile as integer)
-
-				/*
-				print(">" + (checkCurrent) + "< n: " + r_name)
-				print(">" + (checkCurrent) + "< e: " + r_expa as string)
-				print(">" + (checkCurrent) + "< rs: " + r_fsta as string)
-			    print(">" + (checkCurrent) + "< re: " + r_fend as string)
-				*/
-
-				local loadSequence = Sequence s_Name:(r_name) s_ExportAccessory:r_expa s_Range_Start:r_fsta s_Range_End:r_fend
-
-				/*
-				print(loadSequence.s_Name + "< n: " + loadSequence.s_Name as string)
-				print(loadSequence.s_Name + "< e: " + loadSequence.s_ExportAccessory as string)
-				print(loadSequence.s_Name + "< rs: " + loadSequence.s_Range_Start as string)
-				print(loadSequence.s_Name + "< re: " + loadSequence.s_Range_End as string)
-				*/
-
-				append SequenceArray loadSequence
-
-				--print("Loaded sequence >> " + loadSequence.s_Name as string)
+				append sequencearray loadsequence
 			)
-		) while (searchResult != undefined)
+		) while (searchresult != undefined)
 
-		close oFile
+		close ofile
 
-		--print("Sequence Array >> " + SequenceArray as string)
-		print("[ Loaded sequences from file ]")
-	)
-	else
-	(
-		print("Couldn't find file to open!")
-	)
-)
-
-rollout PipeBoy "PipeBoy"
-(
-	--Construct Base UI "Frame" for rollout windows
-	subRollout UI_Base width:235 height:90 pos:[-1,-1]
-
-	--Window resize function for rollouts [ Override ]
-	fn resizeWindow tTarget tRollout tState =
-	(
-	    if (tState == true) then
-	    (
-			UI_Base.height += tRollout.height
-			tTarget.height += tRollout.height
-	    )
-	    else
-	    (
-			UI_Base.height -= tRollout.height
-			tTarget.height -= tRollout.height
-	    )
-	)
-
-	fn RefreshRollouts =
-	(
-		global ro_m = PipeBoy.UI_RolloutGroup_Main
-		global ro_a = PipeBoy.UI_RolloutGroup_Asset
-		global ro_g = PipeBoy.UI_RolloutGroup_General
-		global ro_p = PipeBoy.UI_RolloutGroup_Project
-	)
-
-	fn LoadVariables =
-	(
-		--Setup which project to load from file
-		--print("PBS: " + PBS)
-		tempProjectArray = getINISetting PBS "MainData" "g_Projects"
-		global projectArray = execute tempProjectArray
-
-		if (currentProjectSelected == undefined OR currentProjectSelected == 0) then
-			t_selectProject = 1
-			else
-			t_selectProject = currentProjectSelected
-
-		global currentProjectSelected = t_selectProject
-
-		if (projectArray[t_selectProject] != undefined) then
+		--print("sequence array >> " + sequencearray as string)
+		if (sequencearray.count == 0) then
 		(
-			local pro = (projectArray[t_selectProject] as string)
-
-			global p_ProjectRoot 		= (getINISetting PBS pro "p_projectRoot")
-			global p_ProjectSource 		= (getINISetting PBS pro "p_projectSource")
-			global p_projectAsset 		= (getINISetting PBS pro "p_projectAsset")
-
-			global s_Engine 			= (getINISetting PBS pro "s_Engine") as Integer
-			global s_ImportFromRaw 		= (getINISetting PBS pro "s_ImportFromRaw") as booleanClass
-			global s_ForwardAxis 		= (getINISetting PBS pro "s_ForwardAxis") as Integer
-			global s_MeshGroupPrefix 	= (getINISetting PBS pro "s_MeshGroupPrefix")
-
-			global s_BonePrefix 		= (getINISetting PBS pro "s_BonePrefix")
-			global s_BoneRoot 			= (getINISetting PBS pro "s_BoneRoot")
-			global s_AlignPrefix 		= (getINISetting PBS pro "s_AlignPrefix")
-
-			global s_ac_Folder 			= (getINISetting PBS pro "s_ac_Folder")
-			global s_ac_Prefix 			= (getINISetting PBS pro "s_ac_Prefix")
-			global s_ac_FindIntelligent = (getINISetting PBS pro "s_ac_FindIntelligent") as booleanClass
-			global s_ac_LockRoot		= (getINISetting PBS pro "s_ac_LockRoot") as booleanClass
-			global s_ac_FilePrefix 		= (getINISetting PBS pro "s_ac_FilePrefix")
-			global s_ac_FileSuffix 		= (getINISetting PBS pro "s_ac_FileSuffix")
-			global s_ac_RemoveFilePre 	= (getINISetting PBS pro "s_ac_RemoveFilePre") as Integer
-			global s_ac_RemoveFileSuf 	= (getINISetting PBS pro "s_ac_RemoveFileSuf") as Integer
-
-			print("Loaded project: " + pro)
+			printc("Load Sequences :: [ Found (.boi) file, but found no sequences! ]")
 		)
 		else
 		(
-			MessageBox "Project seems to be missing!" title:"Missing project!"
+			printc("Load Sequences :: [ Loaded (" + (sequencearray.count as string) + ") sequences from file ]")
+		)
+	)
+	else
+	(
+		printc("Load Sequences :: [ Couldn't find (.boi) file to open! ]")
+	)
+
+	cbf_updateui()
+)
+
+--Base UI height
+local baseHeight = 94
+
+rollout pipeboy "pipeboy"
+(
+	--construct base ui "frame" for rollout windows
+	subrollout ui_base width:235 height:baseHeight pos:[0,0]
+
+	--window resize function for rollouts [ override ]
+	fn resizewindow ttarget trollout tstate =
+	(
+		--local baseOffset = -20
+
+	    if (tstate == true) then
+	    (
+			ui_base.height += trollout.height
+			ttarget.height += trollout.height
+	    )
+	    else
+	    (
+			ui_base.height -= trollout.height
+			ttarget.height -= trollout.height
+	    )
+	)
+
+	fn refreshrollouts =
+	(
+		global ro_m = pipeboy.ui_rolloutgroup_main
+		global ro_s = pipeboy.ui_rolloutgroup_sequence
+		global ro_a = pipeboy.ui_rolloutgroup_asset
+		global ro_p = pipeboy.ui_rolloutgroup_project
+	)
+
+	fn loadvariables =
+	(
+		--setup which project to load from file
+		--print("pbs: " + pbs)
+		tempprojectarray = getinisetting pbs "maindata" "g_projects"
+		global projectarray = execute tempprojectarray
+
+		if (currentprojectselected == undefined or currentprojectselected == 0) then
+			t_selectproject = 1
+			else
+			t_selectproject = currentprojectselected
+
+		global currentprojectselected = t_selectproject
+
+		if (projectarray[t_selectproject] != undefined) then
+		(
+			local pro = (projectarray[t_selectproject] as string)
+
+			global p_projectroot 		= (getinisetting pbs pro "p_projectroot")
+			global p_projectsource 		= (getinisetting pbs pro "p_projectsource")
+			global p_projectasset 		= (getinisetting pbs pro "p_projectasset")
+
+			global s_engine 			= (getinisetting pbs pro "s_engine") as integer
+			global s_importfromraw 		= (getinisetting pbs pro "s_importfromraw") as booleanclass
+			global s_forwardaxis 		= (getinisetting pbs pro "s_forwardaxis") as integer
+			global s_meshgroupprefix 	= (getinisetting pbs pro "s_meshgroupprefix")
+
+			global s_boneprefix 		= (getinisetting pbs pro "s_boneprefix")
+			global s_boneroot 			= (getinisetting pbs pro "s_boneroot")
+			global s_alignprefix 		= (getinisetting pbs pro "s_alignprefix")
+
+			global s_ac_folder 			= (getinisetting pbs pro "s_ac_folder")
+			global s_ac_prefix 			= (getinisetting pbs pro "s_ac_prefix")
+			global s_ac_findintelligent = (getinisetting pbs pro "s_ac_findintelligent") as booleanclass
+			global s_ac_lockroot		= (getinisetting pbs pro "s_ac_lockroot") as booleanclass
+			global s_ac_lockrootdepth 	= (getinisetting pbs pro "s_ac_lockrootdepth") as integer
+
+			global s_ac_fileprefix 		= (getinisetting pbs pro "s_ac_fileprefix")
+			global s_ac_filesuffix 		= (getinisetting pbs pro "s_ac_filesuffix")
+			global s_ac_removefilepre 	= (getinisetting pbs pro "s_ac_removefilepre") as integer
+			global s_ac_removefilesuf 	= (getinisetting pbs pro "s_ac_removefilesuf") as integer
+
+			printc("loaded project: " + pro)
+		)
+		else
+		(
+			messagebox "project seems to be missing!" title:"missing project!"
 		)
 	)
 
-	fn RotatePivotOnlyEngine obj =
+	fn rotatepivotonlyengine obj =
 	(
 		/*
-		1 = X-Forward
-		2 = - X-Forward
-		3 = Y-Forward
-		4 = - Y-Forward
+		1 = x-forward
+		2 = - x-forward
+		3 = y-forward
+		4 = - y-forward
 		*/
 
-		local RotValInv --Set up local rotation variable
+		local rotvalinv --set up local rotation variable
 
-		case s_Engine of
+		case s_engine of
 		(
-			--local rotValInv = case s_ForwardAxis of
+			--local rotvalinv = case s_forwardaxis of
 
 			1:
 			(
-				RotValInv = EulerAngles 90 0 90
+				rotvalinv = eulerangles 90 0 90
 			)
 
 			2:
 			(
-				RotValInv = EulerAngles 0 0 0
+				rotvalinv = eulerangles 0 0 0
 			)
 		)
 
 		animate off in coordsys local
 		(
-			--obj.objectoffsetrot *= (RotValInv as quat)
-			obj.rotation *= inverse (RotValInv as quat)
-			obj.objectoffsetrot *= inverse(RotValInv as quat)
+			--obj.objectoffsetrot *= (rotvalinv as quat)
+			obj.rotation *= inverse (rotvalinv as quat)
+			obj.objectoffsetrot *= inverse(rotvalinv as quat)
 		)
 	)
 
-	fn exportProcess ExportType aStart: aEnd: aSequenceName: aExport: OVERRIDEREDRAW: =
+	fn ExportProcess collection: exportType:1 astart: aend: asequencename: aexport:false overrideredraw:false delayPrint:false =
 	(
+		local exportCollection = #()
+
+		--Do this rather than supply default to have it autimatically pick exportgroup if unsupplied
+		if (collection == unsupplied) then ( exportCollection = exportgroup ) else ( exportCollection = collection)
+
 		local r_start = ro_m.anim_range_start.value
 		local r_end = ro_m.anim_range_end.value
 
-		if (aStart != unsupplied) do (r_start = aStart)
-		if (aEnd != unsupplied) do (r_end = aEnd)
+		if (astart != unsupplied) do (r_start = astart)
+		if (aend != unsupplied) do (r_end = aend)
 
-		if (r_start == r_end) do (r_end = r_end + 1) --If range is 0 long, add one frame to export properly
+		if (r_start == r_end) do (r_end = r_end + 1) --if range is 0 long, add one frame to export properly
 
-		local pro = projectArray[currentProjectSelected] as string
+		local pro = projectarray[currentprojectselected] as string
 
-		--Update filename to base asset name from
-		gName = (getFilenameFile  maxFileName)
+		--update filename to base asset name from
+		gname = (getfilenamefile  maxfilename)
 
-		thePlugin = pluginManager
-		thePlugin.loadClass FBXEXPORTER
+		theplugin = pluginmanager
+		theplugin.loadclass fbxexporter
 
-		FBXExporterSetParam "SmoothingGroups" True
-		FBXExporterSetParam "TangentSpaceExport" True
-		FBXExporterSetParam "ASCII" False
-		FBXExporterSetParam "FileVersion" "FBX201400"
-		FBXExporterSetParam "Cameras" False
-		FBXExporterSetParam "Lights" False
-		FBXExporterSetParam "PreserveInstances" True
-		FBXExporterSetParam "ScaleFactor" 1.0
-		FBXExporterSetParam "ShowWarnings" False
+		fbxexportersetparam "smoothinggroups" true
+		fbxexportersetparam "tangentspaceexport" true
+		fbxexportersetparam "ascii" false
+		fbxexportersetparam "fileversion" "fbx201400"
+		fbxexportersetparam "cameras" false
+		fbxexportersetparam "lights" false
+		fbxexportersetparam "preserveinstances" true
+		fbxexportersetparam "scalefactor" 1.0
+		fbxexportersetparam "showwarnings" false
 
-		local tempInterval = animationRange
+		local tempinterval = animationrange
 
-		case ExportType of
+		case exportType of
 		(
 			1:
 			(
-				FBXExporterSetParam "Animation" False
-
-				clearSelection()
-
-				with redraw off
-				(
-					execute "$exportGroup"
-				)
+				fbxexportersetparam "animation" false
 			)
 
 			2:
 			(
-				FBXExporterSetParam "Animation" True
+				fbxexportersetparam "animation" true
+				fbxexportersetparam "bakeanimation" true
+				fbxexportersetparam "bakeresampleanimation" true
+				fbxexportersetparam "bakeframestart" r_start
+				fbxexportersetparam "bakeframeend" r_end
 
-				FBXExporterSetParam "BakeAnimation" True
-				FBXExporterSetParam "BakeResampleAnimation" True
-
-				FBXExporterSetParam "BakeFrameStart" r_start
-				FBXExporterSetParam "BakeFrameEnd" r_end
-
-				--Resize active range to exporting range length to avoid "dead frames"
-				animationRange = interval r_start r_end
+				--resize active range to exporting range length to avoid "dead frames"
+				animationrange = interval r_start r_end
 			)
 		)
 
-		--Set export params
-		FBXExporterSetParam "PushSettings"
+		--set export params
+		fbxexportersetparam "pushsettings"
 
-		local p_length = ((getINISetting PBS pro "p_projectSource").count)
-		local p_subPath = replace (maxFilePath as string) 1 (p_length) ""
+		local p_length = ((getinisetting pbs pro "p_projectsource").count)
+		local p_subpath = replace (maxfilepath as string) 1 (p_length) ""
 
-		--Build final path to file export location
-		if (s_ImportFromRaw == false) then
+		--build final path to file export location
+		if (s_importfromraw == false) then
 		(
-			local p_fileExportPath = pathConfig.appendPath p_ProjectRoot p_subPath
+			local p_fileexportpath = pathconfig.appendpath p_projectroot p_subpath
 		)
 		else
 		(
-			local p_fileExportPath = (maxFilePath as string)
+			local p_fileexportpath = (maxfilepath as string)
 		)
 
-		if (NOT doesFileExist p_fileExportPath OR NOT getFileAttribute p_fileExportPath #directory) do
+		if (not doesfileexist p_fileexportpath or not getfileattribute p_fileexportpath #directory) do
 		(
-			--Path folder not found, create folder
-			printc("Path folder not found, creating folder.")
-			makeDir p_fileExportPath
+			--path folder not found, create folder
+			printc("path folder not found, creating folder.")
+			makedir p_fileexportpath
 		)
 
-		if (aSequenceName != unsupplied) then
+		--regular filename-based naming
+		local fileexportname = (p_fileexportpath + gname + ro_a.fileextension.text + ".fbx") as string
+
+		--Modify name if we're using sequence list
+		if (asequencename != unsupplied) do
 		(
-			--Animation sequence naming
-			fileExportName = (p_fileExportPath + (aSequenceName as string) + ro_a.FileExtension.text + ".fbx") as string
-		)
-		else
-		(
-			--Regular filename-based naming
-			fileExportName = (p_fileExportPath + gName + ro_a.FileExtension.text + ".fbx") as string
+			--animation sequence naming
+			fileexportname = (p_fileexportpath + (asequencename as string) + ro_a.fileextension.text + ".fbx") as string
 		)
 
-		exportfile (fileExportName) #noprompt selectedOnly:true using:thePlugin
-
-		print("Exported at >> " + fileExportName)
-
-		--[ Export accessory ]--
-		if ((aExport != unsupplied AND aExport == true AND ro_m.ExportAccessory.state == true) OR (aExport == unsupplied AND ro_m.ExportAccessory.state == true)) do
-		(
-			local accessory = LocateAccessory pre: s_ac_Prefix
-
-			if (accessory != undefined) do
-			(
-				getChildren(accessory)
-
-				local accessoryExportName = ""
-
-				local adjustedName = gName
-
-				if (aSequenceName != unsupplied) do (adjustedName = (aSequenceName as string))
-
-				local accessoryName = replace adjustedName 1 s_ac_RemoveFilePre s_ac_FilePrefix
-				accessoryName = replace accessoryName (accessoryName.count - s_ac_RemoveFileSuf) s_ac_RemoveFileSuf s_ac_FileSuffix
-
-				local accessoryFolder =  ((s_ac_Folder as string) + "\\")
-
-				accessoryExportName = (p_fileExportPath + accessoryFolder + accessoryName + ro_a.FileExtension.text + ".fbx") as string
-
-				exportfile (accessoryExportName) #noprompt selectedOnly:true using:thePlugin
-
-				print("Exported accessory at >> " + accessoryExportName)
-			)
-		)
-
-		--[ Finish up export sequence]--
-		animationRange = tempInterval
-
+		--Only select defined collection for export
 		clearSelection()
+		select exportCollection
 
-		if (OVERRIDEREDRAW == unsupplied) then
+		--Perform export operation
+		exportfile (fileexportname) #noprompt selectedonly:true using:theplugin
+
+		if (delayPrint == false) then ( print("exported at >> " + fileexportname as string) ) else ( append exportResults ("exported at >> " + fileexportname) )
+
+		--[ export accessory ]--
+		if (aexport == true) do
 		(
-			enableSceneRedraw()
-		)
-		else
-		(
-			if (OVERRIDEREDRAW == false) do (enableSceneRedraw())
-		)
+			local aSel = ro_s.rigAccessory.selection
 
-	)
+			local accessoryCopies = undefined
 
-	--Dependency class
-	fn PrepareMeshForExport group_mesh generate_lods lods_amount =
-	(
-		RefreshRollouts()
-
-		local ObjectSelection = selection as array
-
-		if (currentAssetSelected != 1) do
-		(
-			MessageBox "Current asset type is not set to Geometry!" title:"Wrong asset type!"
-			return()
-		)
-
-		if (ObjectSelection.count == 0 and group_mesh == false) do
-		(
-			print("Nothing selected, quitting...")
-			return()
-		)
-
-		--Get exclusion node parent
-		local excludeObject = getNodeByName "ExcludeExport"
-
-		--Remove exclusion objects from export selection, ignore pass if no object is found
-		if (excludeObject != undefined) do
-		(
-			printc("Found exclusion node!")
-
-			local RemoveObjectsSelection = getChildren(excludeObject)
-
-			for i = 1 to RemoveObjectsSelection.count do
+			if (aSel != 0 and aSel != 1) then
 			(
-				local findQue = findItem ObjectSelection RemoveObjectsSelection[i]
-
-				if (findQue != 0) do
-					deleteItem ObjectSelection findQue
+				local accessoryChildren = getPrefixObjects pre:ro_s.rigAccessory.selected
+				accessoryCopies = CopyNodes collection:accessoryChildren
 			)
-		)
-
-		global cleanGroup = #()
-		global exportGroup = #()
-		global GroupArray = #()
-
-		free cleanGroup
-		free exportGroup
-		free GroupArray
-
-		try
-		(
-			disableSceneRedraw()
-
-			with undo off
+			else
 			(
-				--Create root export object for axis conversion
-				local ExportParent = Point Size:500 Name:"ExportParent"
-				RotatePivotOnlyEngine(ExportParent)
-				FreezeTransforms(ExportParent)
+				--local accessory = LocateAccessory pre:s_ac_prefix
+				local accessory = ro_s.pickAccessory.object
 
-				append exportGroup ExportParent
-				append cleanGroup ExportParent
-
-				--Clone export objects for non-destructive processing
-				local SafeCopies = #()
-
-				--Copy export objects into a "safe selection" in case something goes wrong
-				CopyNodes ObjectSelection #copy &SafeCopies
-				append cleanGroup SafeCopies
-
-				--Make all instances in selection unique (Will be ignored otherwise)
-				InstanceMgr.MakeObjectsUnique SafeCopies #individual
-
-				--Clear selection to set up proper selection for export
-				clearSelection()
-				select SafeCopies
-
-				if (s_MeshGroupPrefix == undefined) do (s_MeshGroupPrefix = "g_")
-
-				--Assume there are no mesh group objects in scene
-				local validGroupObjects = false
-
-				--Collect mesh groups in selection
-				for obj in SafeCopies do
+				if (isValidNode accessory) do
 				(
-					if (matchPattern obj.name pattern:(s_MeshGroupPrefix + "*") == true) do
-					(
-						printc("Found group object: " + obj.name + " - adding to array")
-						append GroupArray obj
+					local accessoryChildren = getChildren obj:accessory
+					accessoryCopies = CopyNodes collection:accessoryChildren
+				)
+			)
 
-						validGroupObjects = true
+			if (accessoryCopies != undefined) then
+			(
+				stripPrefixes(accessoryCopies)
+
+				if (s_ac_lockroot == true) do
+				(
+					local rootLocker = point name:"RootLocker" size:20
+
+					pc = Position_Constraint()
+			        oc = Orientation_Constraint()
+
+			        pcc = pc.constraints
+			        pcc.appendTarget rootLocker 100.0
+
+			        occ = oc.constraints
+			        occ.appendTarget rootLocker 100.0
+
+					accessoryCopies[1].pos.controller = pc
+					accessoryCopies[1].rotation.controller = oc
+
+					accessoryCopies[2].pos.controller = pc
+					accessoryCopies[2].rotation.controller = oc
+				)
+
+				--Only select defined collection for export
+				clearSelection()
+				select accessoryCopies
+
+				local accessoryexportname = ""
+				local adjustedname = gname
+
+				if (asequencename != unsupplied) do (adjustedname = (asequencename as string))
+
+				local accessoryname = replace adjustedname 1 s_ac_removefilepre s_ac_fileprefix
+				accessoryname = replace accessoryname (accessoryname.count - s_ac_removefilesuf) s_ac_removefilesuf s_ac_filesuffix
+
+				local accessoryfolder =  ((s_ac_folder as string) + "\\")
+
+				accessoryexportname = (p_fileexportpath + accessoryfolder + accessoryname + ro_a.fileextension.text + ".fbx") as string
+
+				exportfile (accessoryexportname) #noprompt selectedonly:true using:theplugin
+
+				for o in accessoryCopies do
+				(
+					if (isValidNode o) do
+					(
+						delete o
 					)
 				)
 
-				if (group_mesh == true and validGroupObjects == true) then
+				if (isValidnode rootLocker) do (delete rootLocker)
+
+				if (delayPrint == false) then ( print("exported accessory at >> " + accessoryexportname) ) else ( append exportResults ("exported accessory at >> " + accessoryexportname) )
+			)
+			else
+			(
+				print("Export :: No accessory found!")
+			)
+		)
+
+		--[ finish up export sequence]--
+		animationrange = tempinterval
+
+		clearselection()
+
+		if (overrideredraw == false) do ( enablesceneredraw() )
+	)
+
+	--dependency function
+	fn PrepMesh collection:$* groupMesh:false lod:false lod_amount:3 =
+	(
+		refreshrollouts()
+
+		local objectselection = collection as array
+
+		if (objectselection.count == 0 and groupMesh == false) do
+		(
+			print("nothing selected, quitting...")
+			return()
+		)
+
+		--get exclusion node parent
+		local excludeobject = getnodebyname "excludeexport"
+
+		--remove exclusion objects from export selection, ignore pass if no object is found
+		if (excludeobject != undefined) do
+		(
+			printc("found exclusion node!")
+
+			local removeobjectsselection = getChildren obj:excludeobject
+
+			for i = 1 to removeobjectsselection.count do
+			(
+				local findque = finditem objectselection removeobjectsselection[i]
+
+				if (findque != 0) do
+					deleteitem objectselection findque
+			)
+		)
+
+		global grouparray = #()
+
+		free cleangroup
+		free exportgroup
+
+		try
+		(
+			disablesceneredraw()
+
+			with undo off
+			(
+				--create root export object for axis conversion
+				local exportparent = point size:500 name:"exportparent"
+				rotatepivotonlyengine(exportparent)
+				freezetransforms(exportparent)
+
+				append exportgroup exportparent
+				append cleangroup exportparent
+
+				--clone export objects for non-destructive processing
+				local safecopies = CopyNodes collection:objectselection
+
+				append cleangroup safecopies
+
+				--make all instances in selection unique (will be ignored otherwise)
+				instancemgr.makeobjectsunique safecopies #individual
+
+				if (s_meshgroupprefix == undefined) do (s_meshgroupprefix = "g_")
+
+				--assume there are no mesh group objects in scene
+				local validgroupobjects = false
+
+				--collect mesh groups in selection
+				for obj in safecopies do
 				(
-					--Process mesh groups
-					for g in GroupArray do
+					if (matchpattern obj.name pattern:(s_meshgroupprefix + "*") == true) do
+					(
+						printc("found group object: " + obj.name + " - adding to array")
+						append grouparray obj
+
+						validgroupobjects = true
+					)
+				)
+
+				if (groupMesh == true and validgroupobjects == true) then
+				(
+					--process mesh groups
+					for g in grouparray do
 					(
 						printc("\n")
-						printc("[---------Creating Mesh Group---------]")
-						printc("Group object: " + g.name)
+						printc("[---------creating mesh group---------]")
+						printc("group object: " + g.name)
 
-						clearSelection()
-						select g.children
+						local meshSearchCollection = getChildren obj:g
+						local combininggroup = filterformeshes(meshSearchCollection)
 
-						local CombiningGroup = FilterForMeshes(selection)
+						printc("\ngroup objects {")
+						printc(combininggroup as array)
 
-						printc("\nGroup objects {")
-						printc(CombiningGroup as array)
+						--local groupname = replace (trimright (g.name as string) "0123456789") 1 s_meshgroupprefix.count ""
+						local groupname = replace (g.name as string) 1 s_meshgroupprefix.count ""
 
-						local GroupName = replace (trimRight (g.name as string) "0123456789") 1 s_MeshGroupPrefix.count ""
+						local groupparent = point size:100 name:(("g_" + groupname) as string)
+						rotatepivotonlyengine(groupparent)
 
-						local GroupParent = Point Size:100 Name:(("g_" + GroupName) as string)
-						RotatePivotOnlyEngine(GroupParent)
-						append exportGroup GroupParent
-						append cleanGroup GroupParent
+						append exportgroup groupparent
+						append cleangroup groupparent
 
-						local CombinedMesh = Editable_Mesh name:(("mg_" + GroupName) as string)
-						convertTo CombinedMesh Editable_Poly
+						local combinedmesh = editable_mesh name:(("mg_" + groupname) as string)
+						convertto combinedmesh editable_poly
 
-						GroupParent.parent = ExportParent
-						GroupParent.position = g.position
-						CombinedMesh.position = g.position
+						groupparent.parent = exportparent
+						groupparent.position = g.position
+						combinedmesh.position = g.position
 
-						printc("\nCombined mesh: " + CombinedMesh.name)
-						printc("\n[Starting grouping process]\n")
+						printc("\ncombined mesh: " + combinedmesh.name)
+						printc("\n[starting grouping process]\n")
 
-						for c in CombiningGroup do
+						for c in combininggroup do
 						(
-							collapseStack c
-							convertTo c Editable_Poly
+							collapsestack c
+							convertto c editable_poly
 
-							printc("Adding mesh [ " + c.name + " ] to: " + CombinedMesh.name)
+							printc("adding mesh [ " + c.name + " ] to: " + combinedmesh.name)
 
-							polyop.attach CombinedMesh c
+							polyop.attach combinedmesh c
 						)
 
-						--Fix pivot
-						if (ZeroPivotToOrigin == true) then
-						(
-							in coordsys world CombinedMesh.objectOffsetPos = [0,0,0]
-							in coordsys world CombinedMesh.objectOffsetRot = (eulerangles 0 0 0)
-							(_rotation as quat)
-						)
-						else
-						(
-							ResetTransform CombinedMesh
-						)
+						--fix pivot
+						resettransform combinedmesh
 
-						if (UnlinkFromParent == true)
-						then
-						(CombinedMesh.parent = ExportParent)
-						else
-						(CombinedMesh.parent = GroupParent)
+						--Reparent mesh to group parent
+						combinedmesh.parent = groupparent
 
-						RotatePivotOnlyEngine(CombinedMesh)
+						--Fix pivot orientation to engine specifics
+						rotatepivotonlyengine(combinedmesh)
 
-						--Add combined object to group
-						append exportGroup CombinedMesh
-						append cleanGroup CombinedMesh
+						--add combined object to group
+						append exportgroup combinedmesh
+						append cleangroup combinedmesh
 					)
 				)
 				else
 				(
-					--Regular export selection
-					local CombiningGroup = FilterForMeshes(selection)
+					--regular export selection
+					local combininggroup = filterformeshes(safecopies)
 
-					for i = 1 to CombiningGroup.count do
+					for c in combininggroup do
 					(
-						c = CombiningGroup[i]
+						collapsestack c
+						convertto c editable_poly
 
-						collapseStack c
-						convertTo c Editable_Poly
-
-						local CurrentParent = c.parent
+						local currentparent = c.parent
 						c.parent = undefined
 
-						if (UnlinkFromParent == true) then
-						(
-							c.parent = ExportParent
-						)
-						else
-						(
-							if (CurrentParent == undefined) then (c.parent = ExportParent) else (c.parent = CurrentParent)
-						)
+						--Fix parenting
+						if (currentparent == undefined) then (c.parent = exportparent) else (c.parent = currentparent)
 
-						RotatePivotOnlyEngine(c)
+						--Fix pivot orientation to engine specifics
+						rotatepivotonlyengine(c)
 
-						append exportGroup c
-						--append cleanGroup c
+						append exportgroup c
+						--append cleangroup c
 					)
 				)
 			)
 		)
 		catch
 		(
-			enableSceneRedraw()
+			enablesceneredraw()
 
-			if (cleanGroup != undefined) do
-			(
-				if (cleanGroup.count >= 1) do
-				(
-					for o in cleanGroup do
-					(
-						try(delete o)catch()
-					)
-				)
-			)
+			for o in cleangroup do ( if (isValidnode o) do ( delete o ) )
+			for o in safecopies do ( if (isValidnode o) do ( delete o ) )
+			for o in exportgroup do ( if (isValidnode o) do ( delete o ) )
 
-			if (SafeCopies != undefined) do
-			(
-				if (SafeCopies.count >= 1) do
-				(
-					for o in SafeCopies do
-					(
-						try(delete o)catch()
-					)
-				)
-			)
+			messagebox "something went wrong!" title:"error"
 
-			--Already deleted I guess?
-			--delete ExportParent
-
-			messageBox "Something went wrong!" title:"Error"
-
-			return()
+			throw()
 		)
 
-		if (generate_lods) do
+		if (lod == true) do
 		(
-			local LodMeshsGroups = FilterForMeshes exportGroup
-			LodGenerator LodMeshsGroups lods_amount
+			local lodmeshsgroups = filterformeshes exportgroup
+			lodgenerator lodmeshsgroups lod_amount
 		)
 
-		--Done!
-		printc("\nOperation done!")
-		printc("Export group {")
-		printc(exportGroup)
+		--done!
+		printc("\n Operation done!")
+		printc("[ Export Group ]")
+		printc(exportgroup)
 
-		rotate ExportParent (eulerangles 0 0 -90)
+		rotate exportparent (eulerangles 0 0 -90)
 
-		--Collect combined objets and export them, then clean em' out
-		clearSelection()
-		select exportGroup
+		--collect combined objets and export them, then clean em' out
+		ExportProcess collection:exportgroup
 
-		exportProcess 1
+		for o in cleangroup do ( if (isValidnode o) do ( delete o ) )
+		for o in safecopies do ( if (isValidnode o) do ( delete o ) )
+		for o in exportgroup do ( if (isValidnode o) do ( delete o ) )
 
-		clearSelection()
-
-		for o in cleanGroup do
-		(
-			try(delete o)catch()
-		)
-
-		for o in SafeCopies do
-		(
-			try(delete o)catch()
-		)
-
-		free cleanGroup
-		free exportGroup
+		free cleangroup
+		free exportgroup
 	)
 
-
-	rollout UI_RolloutGroup_Main "Export"
+	rollout ui_rolloutgroup_main "export"
     (
-		group "Mesh"
+		group "mesh"
 		(
-			button Export "Export" width:94 pos:[14,22]
-			button ExportSelection "Export Selection" width:94 pos:[116,22]
+			button export "Export" width:94 pos:[14,22]
+			button exportselection "Export Selection" width:94 pos:[116,22]
 		)
 
-		group "Animation"
+		group "animation"
 		(
-			button ExportAnimation "Export Animation" width:94 pos:[14, 70]
+			button exportanimation "Export Animation" width:94 pos:[14, 70]
 
-			spinner anim_range_start "" pos:[115,73] width:42 height:16 range:[-10000,10000,normTime 0] type:#integer
-			spinner anim_range_end  "to " pos:[115+54,73] width:42 height:16 range:[-10000,10000,normTime 1] type:#integer
-
-			button EditSequences "Edit sequences" pos:[118, 95]
-
-			checkbox ExportSequences "Exp Sequences" pos:[15, 95]
-			checkbox ExportAccessory "Exp Accessory" pos:[15, 112]
+			spinner anim_range_start "" pos:[115,73] width:42 height:16 range:[-10000,10000,normtime 0] type:#integer
+			spinner anim_range_end  "to " pos:[115+54,73] width:42 height:16 range:[-10000,10000,normtime 1] type:#integer
 		)
 
-		on UI_RolloutGroup_Main rolledUp State do (resizeWindow PipeBoy UI_RolloutGroup_Main State)
-
-		on Export pressed do
+		on ui_rolloutgroup_main rolledup state do
 		(
-			LoadVariables() -- Double check saved variables
-			RefreshRollouts() --Same for rollouts
+			resizewindow pipeboy ui_rolloutgroup_main state
+			if (allowStorePersistance) do ( ro_open_m = state )
+		)
 
-			select $*
-
-			if (selection.count == 0) do (return())
-
-			if ((getFilenameFile  maxFileName) == "") do
+		on export pressed do
+		(
+			if (currentassetselected != 1) do
 			(
-				MessageBox "Save scene first!" title:"Export error!"
+				messagebox "Current asset type is not set to geometry!" title:"wrong asset type!"
 				return()
 			)
 
-			if (ro_a == undefined) do (RefreshRollouts())
+			print(" { Starting new export process... } ")
 
-			PrepareMeshForExport ro_a.meshGrouper.state ro_a.generateLods.state ro_a.lodsAmount
-		)
+			loadvariables() -- double check saved variables
+			refreshrollouts() --same for rollouts
 
-		on ExportSelection pressed do
-		(
-			LoadVariables() -- Double check saved variables
-			RefreshRollouts() --Same for rollouts
+			local exportCollection = $*
 
-			if (selection.count == 0) do (return())
+			if (exportCollection.count == 0) do (return())
 
-			if ((getFilenameFile  maxFileName) == "") do
+			if ((getfilenamefile  maxfilename) == "") do
 			(
-				MessageBox "Save scene first!" title:"Export error!"
+				messagebox "save scene first!" title:"export error!"
 				return()
 			)
 
-			if (ro_a == undefined) do (RefreshRollouts())
+			if (ro_a == undefined) do (refreshrollouts())
 
-			PrepareMeshForExport ro_a.meshGrouper.state ro_a.generateLods.state ro_a.lodsAmount
+			local combine = ro_a.meshgrouper.state
+			local doLods = ro_a.generatelods.state
+
+			PrepMesh collection:exportCollection groupMesh:combine lod:doLods lod_amount:ro_a.lodsamount
 		)
 
-		on ExportAnimation pressed do
+		on exportselection pressed do
 		(
-			LoadVariables() -- Double check saved variables
-			RefreshRollouts() --Same for rollouts
-
-			if ((getFilenameFile  maxFileName) == "") do
+			if (currentassetselected != 1) do
 			(
-				MessageBox "Save scene first!" title:"Export error!"
+				messagebox "Current asset type is not set to geometry!" title:"wrong asset type!"
 				return()
 			)
 
-			clearSelection()
+			print(" { Starting new export process... } ")
 
-			try
+			loadvariables() -- double check saved variables
+			refreshrollouts() --same for rollouts
+
+			local exportCollection = selection as array
+
+			if (exportCollection.count == 0) do (return())
+
+			if ((getfilenamefile  maxfilename) == "") do
 			(
-				disableSceneRedraw()
+				messagebox "save scene first!" title:"export error!"
+				return()
+			)
 
-				local rootBone = getNodeByName (s_BoneRoot as string) ignoreCase:false
+			if (ro_a == undefined) do (refreshrollouts())
 
-				if (rootBone == undefined) do
+			local combine = ro_a.meshgrouper.state
+			local doLods = ro_a.generatelods.state
+
+			PrepMesh collection:exportCollection groupMesh:combine lod:doLods lod_amount:ro_a.lodsamount
+		)
+
+		on exportanimation pressed do
+		(
+			if (currentassetselected != 2) do
+			(
+				messagebox "Current asset type is not set to animation!" title:"wrong asset type!"
+				return()
+			)
+
+			print(" { Starting new export process... } ")
+
+			clearselection()
+
+			loadvariables() -- double check saved variables
+			refreshrollouts() --same for rollouts
+
+			if ((getfilenamefile  maxfilename) == "") do
+			(
+				messagebox "save scene first!" title:"export error!"
+				return()
+			)
+
+			local cNodes = undefined --Node collection of character rig
+			local aNodes = undefined --Node collection of accessory rig
+
+			local cSel = ro_s.rigCharacter.selection
+			local aSel = ro_s.rigAccessory.selection
+
+			local selValid = ((cSel != 0) and (cSel != 1))
+
+			if (selValid and (cSel == aSel)) then
+			(
+				messagebox "Character and Accessory rigs are marked as the same!" title:"export error!"
+				return()
+			)
+			else
+			(
+				if selValid then
 				(
-					messageBox "Can't find root bone, check project settings! Case sensitive!" title:"No root bone!"
-					return()
-				)
-
-				with redraw off
-				(
-					local nodeSelection = getChildren(rootBone)
-					local boneSelection = #()
-				)
-
-				print("Redraw disabled?: " + (isSceneRedrawDisabled() as string))
-
-				for i = 1 to nodeSelection.count do
-				(
-					obj = nodeSelection[i]
-
-					boneMatchResult = matchPattern (obj.name) pattern:((s_BonePrefix as string) + "*") ignoreCase:false
-					alignMatchResult = matchPattern (obj.name) pattern:((s_AlignPrefix as string) + "*") ignoreCase:false
-
-					if (boneMatchResult == true OR alignMatchResult == true) do
-					(
-						append boneSelection obj
-					)
-				)
-
-				clearSelection()
-
-				if (ExportSequences.state == true) then
-				(
-					--Load fresh sequence data from .boi file!
-					LoadSequences()
-
-					--print("Sequences: " + SequenceArray as string)
-
-					--return()
-					for s in SequenceArray do
-					(
-						--Re-select each pass
-						select boneSelection
-
-						--print("Exporting sequence #" + (s as string) + "...")
-
-						local aName = s.s_Name
-						local aStart = s.s_Range_Start
-						local aEnd = s.s_Range_End
-						local aExp = s.s_ExportAccessory
-
-						exportProcess 2 aStart: aStart aEnd: aEnd aSequenceName: aName aExport: aExp OVERRIDEREDRAW:true
-					)
+					cNodes = getPrefixObjects pre:ro_s.rigCharacter.selected
 				)
 				else
 				(
-					with redraw off
-					(
-						--Do single selection pass
-						select boneSelection
+					--local rootbone = getnodebyname (s_boneroot as string) ignorecase:false
+					local rootbone = ro_s.pickCharacter.object
 
-						--print("Do regular export")
-						exportProcess 2
+					if (rootbone == undefined) then
+					(
+						enablesceneredraw()
+						messagebox "Can't find root bone, check project settings! (Case sensitive)" title:"NO ROOT!"
+						return()
+					)
+					else
+					(
+						local rootNodes = getChildren obj:rootbone
+						cNodes = rootNodes
 					)
 				)
 			)
+
+			-- debug print selection
+			--print("[ Character rig nodes ]")
+			--print(cNodes)
+
+			--Prepare copy array for safe operation
+			local copies = #()
+
+			try
+			(
+				DisableSceneRedraw() --speed up processing
+
+				--Make copies of bones to export for safer operation
+				copies = CopyNodes collection:cNodes
+
+				--Remove prefixes from copied nodes
+				stripPrefixes(copies)
+
+				--Print export node selection
+				printc("[ Nodes ]")
+				printc(copies)
+
+				if (ro_s.exportsequences.state == true) then
+				(
+					local selectedSequences = #()
+
+					for i in ro_s.list_sequences.selection do
+					(
+						if (sequencearray[i] != undefined) do
+						(
+							append selectedSequences sequencearray[i]
+						)
+					)
+
+					printc("[ Selected Sequences ]")
+					printc(selectedSequences)
+
+					--Prepare to store export results to print after finishing operation
+					free exportResults
+
+					for s in selectedSequences do
+					(
+						--Try export accessory
+						local tea = (s.exportAccessory and ro_s.exportaccessory.state)
+
+						ExportProcess collection:copies exportType:2 astart:s.range_start aend:s.range_end asequencename:s.sequenceName aexport:tea overrideredraw:true delayPrint:true
+					)
+
+					EnableSceneRedraw()
+
+					--Print export results
+					for result in exportResults do ( print(result) )
+				)
+				else
+				(
+					ExportProcess collection:copies exportType:2 aexport:ro_s.exportaccessory.state
+				)
+
+				--Clean up copied nodes from export process after operation is done
+				for o in copies do ( delete o )
+			)
 			catch
 			(
-				--Re-enable scene redrawing if error occurs
-				enableSceneRedraw()
+				--Try to clean up copied nodes from export process
+				for o in copies do ( delete o )
+
+				enablesceneredraw() --re-enable scene redrawing if error occurs
+
+				--Wait with throwing error message until cleanup is performed
+				throw()
 			)
-
-			--Backup enable
-			enableSceneRedraw()
-
 		)
-
-		on EditSequences pressed do
-		(
-			--Open rollout from external file
-			fileIn PipeBoyAnimSetup
-		)
-
     )
 
-	rollout UI_RolloutGroup_Asset "Asset Settings"
+	rollout ui_rolloutgroup_sequence "animation"
     (
-		group "Asset Settings"
+    	--Sequence settings
+		group ""
 		(
-			dropdownlist IsType "Asset Type" items:#("Geometry", "Animation") width:125
+			button editsequences "Edit Sequences" pos:[12, 22]
 
-			checkbox meshGrouper "Mesh grouper" checked:false
-			checkbox generateLods "Generate lods" checked:false
-			spinner lodsAmount "Lods" range:[1,6,2] type:#integer width:50 pos:[125, 92]
-			editText FileExtension "File name extension"
+			checkbox exportsequences "Use list" pos:[115, 22]
+			checkbox exportaccessory "Accessory" pos:[115, 40]
+
+			multilistbox list_sequences "Sequence list" items:#("-----") pos:[12, 48] width:200 height:6
+
+			dropdownlist rigCharacter "Character" pos:[14, 152] width:90 tooltip:"Prefix used for character skeleton (overrides pick button if set)"
+			dropdownlist rigAccessory "Accessory" pos:[120, 152] width:90 tooltip:"Prefix used for accessory skeleton (overrides pick button if set)"
+
+			pickbutton pickCharacter "Undefined" pos:[14, 198] width:90 height:20 tooltip:"Direct node reference for character skeleton root bone (is overridden if a prefix is set)"
+			pickbutton pickAccessory "Undefined" pos:[120, 198] width:90 height:20 tooltip:"Direct node reference for accessory skeleton root bone (is overridden if a prefix is set)"
 		)
 
-		on IsType selected NewType do
+		on editsequences pressed do
 		(
-			currentAssetSelected = NewType
+			--open rollout from external file
+			filein pipeboyanimsetup
 		)
 
-		on UI_RolloutGroup_Asset open do
+		on list_sequences selected i do
 		(
-			IsType.selection = currentAssetSelected
+			cbf_updateui()
 		)
 
-		on UI_RolloutGroup_Asset rolledUp State do (resizeWindow PipeBoy UI_RolloutGroup_Asset State)
-
-		on UI_RolloutGroup_Asset open do
+		on pickCharacter picked obj do
 		(
-			UI_RolloutGroup_Asset.open = false
+			if (obj != undefined) do
+			(
+				pickCharacter.text = obj.name
+				pickCharacter.object = obj
+			)
 		)
 
+		on pickAccessory picked obj do
+		(
+			if (obj != undefined) do
+			(
+				pickAccessory.text = obj.name
+				pickAccessory.object = obj
+			)
+		)
+
+		on pickCharacter rightclick do
+		(
+			pickCharacter.text = "Undefined"
+			pickCharacter.object = undefined
+		)
+
+		on pickAccessory rightclick do
+		(
+			pickAccessory.text = "Undefined"
+			pickAccessory.object = undefined
+		)
+
+		on exportsequences changed newState do
+		(
+			if (allowStorePersistance) do ( p_useSequenceList = newState )
+		)
+
+		on exportaccessory changed newState do
+		(
+			if (allowStorePersistance) do ( p_exportAccessory = newState )
+		)
+
+		on ui_rolloutgroup_sequence rolledup state do
+		(
+			resizewindow pipeboy ui_rolloutgroup_sequence state
+			if (allowStorePersistance) do ( ro_open_s = state )
+		)
+
+		on ui_rolloutgroup_sequence open do
+		(
+			exportsequences.state = p_useSequenceList
+			exportaccessory.state = p_exportAccessory
+		)
     )
 
-	rollout UI_RolloutGroup_General "General Settings"
+	rollout ui_rolloutgroup_asset "asset"
     (
-		group "General Settings"
+		group "asset settings"
 		(
-			checkbox ZeroPivot "Zero Pivot" checked:false
-			checkbox Unlink "Unlink" checked:false
-			checkbox PrintMessages "Print to log?" checked:PrintToConsole
+			dropdownlist istype "asset type" items:#("geometry", "animation") width:85
+
+			checkbox meshgrouper "mesh grouper" checked:false
+			checkbox generatelods "generate lods" checked:false
+			spinner lodsamount "lods" range:[1,6,2] type:#integer width:50 pos:[125, 92]
+			edittext fileextension "file name extension"
 		)
 
-		on PrintMessages changed newState do
+		on istype selected newtype do
 		(
-			PrintToConsole = newState
+			currentassetselected = newtype
 		)
 
-		on Unlink changed newState do
+		on meshgrouper changed newState do
 		(
-			UnlinkFromParent = newState
+			if (allowStorePersistance) do ( p_meshGrouper = newState )
 		)
 
-		on ZeroPivot changed newState do
+		on generatelods changed newState do
 		(
-			ZeroPivotToOrigin = newState
+			if (allowStorePersistance) do ( p_generateLods = newState )
 		)
 
-		on UI_RolloutGroup_General rolledUp State do (resizeWindow PipeBoy UI_RolloutGroup_General State)
-
-		on UI_RolloutGroup_General open do
+		on ui_rolloutgroup_asset rolledup state do
 		(
-			UI_RolloutGroup_General.open = false
+			resizewindow pipeboy ui_rolloutgroup_asset state
+			if (allowStorePersistance) do ( ro_open_a = state )
 		)
 
+		on ui_rolloutgroup_asset open do
+		(
+			istype.selection = currentassetselected
+
+			meshgrouper.state = p_meshGrouper
+			generatelods.state = p_generateLods
+		)
     )
 
-	rollout UI_RolloutGroup_Project "Project Settings"
+	rollout ui_rolloutgroup_project "project"
     (
-		group "Project Settings"
+		group "project settings"
 		(
-			dropdownlist currentProject "Project" width:125
-			button refreshProjects "Refresh" pos:[148,44]
+			dropdownlist currentproject "project" width:125
+			button editprojectsettings "Edit" width:65 pos:[144,44]
 		)
 
 		group ""
 		(
-			button editProjectSettings "Edit project settings" align:#center
+			button refresh "Refresh" width:80 align:#center
+			checkbox printmessages "Debug" checked:printtoconsole pos:[162,100]
 		)
 
-		on UI_RolloutGroup_Project open do
+		on ui_rolloutgroup_project open do
 		(
-			UI_RolloutGroup_Project.open = false
+
 		)
 
-		on UI_RolloutGroup_Project rolledUp State do (resizeWindow PipeBoy UI_RolloutGroup_Project State)
-
-		on editProjectSettings pressed do
+		on ui_rolloutgroup_project rolledup state do
 		(
-			fileIn PipeBoySettings
+			resizewindow pipeboy ui_rolloutgroup_project state
+
+			if (allowStorePersistance) do ( ro_open_p = state )
 		)
 
-		on currentProject selected newProject do
+		on editprojectsettings pressed do
 		(
-			if (newProject != undefined) then
+			filein pipeboysettings
+		)
+
+		on currentproject selected newproject do
+		(
+			if (newproject != undefined) then
 			(
-				currentProjectSelected = currentProject.selection
-				LoadVariables()
+				currentprojectselected = currentproject.selection
+				loadvariables()
 			)
 			else
 			(
-				MessageBox "Project seems to be missing!" title:"Missing project!"
-				currentProjectSelected = 1
+				messagebox "project seems to be missing!" title:"missing project!"
+				currentprojectselected = 1
 			)
 		)
 
-		on refreshProjects pressed do
+		on refresh pressed do
 		(
-			LoadVariables()
+			loadvariables()
 
-			currentProject.items = projectArray
+			loadsequences()
+
+			cbf_updateui()
+
+			currentproject.items = projectarray
 		)
 
+		on printmessages changed newstate do
+		(
+			printtoconsole = newstate
+		)
     )
 
-	on PipeBoy open do
+    --Init base rollout
+	on pipeboy open do
 	(
-		--Fix initialized persistent variables
-		if (currentProjectSelected == 0  OR currentProjectSelected == undefined) do (currentProjectSelected = 1)
-		if (currentAssetSelected == 0  OR currentAssetSelected == undefined) do (currentAssetSelected = 1)
-		if (PrintToConsole == undefined) do (PrintToConsole = false)
+		allowStorePersistance = false
 
-		addSubRollout UI_Base UI_RolloutGroup_Main
-		addSubRollout UI_Base UI_RolloutGroup_Asset
-		addSubRollout UI_Base UI_RolloutGroup_General
-		addSubRollout UI_Base UI_RolloutGroup_Project
+		--fix initialized persistent variables
+		if (currentprojectselected == undefined) do (currentprojectselected = 1)
+		if (currentassetselected == undefined) do (currentassetselected = 1)
+		if (printtoconsole == undefined) do (printtoconsole = false)
+		if (p_meshGrouper == undefined) do (p_meshGrouper = false)
+		if (p_generateLods == undefined) do (p_generateLods = false)
+		if (p_useSequenceList == undefined) do (p_useSequenceList = false)
+		if (p_exportAccessory == undefined) do (p_exportAccessory = false)
+		if (ro_open_m == undefined) do (ro_open_m = true)
+		if (ro_open_s == undefined) do (ro_open_s = false)
+		if (ro_open_a == undefined) do (ro_open_a = false)
+		if (ro_open_p == undefined) do (ro_open_p = false)
 
-		global ro_m = PipeBoy.UI_RolloutGroup_Main
-		global ro_a = PipeBoy.UI_RolloutGroup_Asset
-		global ro_g = PipeBoy.UI_RolloutGroup_General
-		global ro_p = PipeBoy.UI_RolloutGroup_Project
+		--Add sub rollouts
+		addsubrollout ui_base ui_rolloutgroup_main
+		addsubrollout ui_base ui_rolloutgroup_sequence
+		addsubrollout ui_base ui_rolloutgroup_asset
+		addsubrollout ui_base ui_rolloutgroup_project
 
-		ro_a.IsType.selection = 1
+		--Cache global references to rollouts
+		global ro_m = pipeboy.ui_rolloutgroup_main
+		global ro_s = pipeboy.ui_rolloutgroup_sequence
+		global ro_a = pipeboy.ui_rolloutgroup_asset
+		global ro_p = pipeboy.ui_rolloutgroup_project
 
-		PBS = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_Settings.ini")
-		PipeBoySettings = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_ProjectSettings.ms")
-		PipeBoyAnimSetup = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_AnimSetup.ms")
+		--Open or close rollouts from memory?
+		if ((ro_m != undefined) and (ro_s != undefined) and (ro_a != undefined) and (ro_p != undefined)) do
+		(
+			if ((classOf ro_open_m == booleanclass) and (classOf ro_open_s == booleanclass) and (classOf ro_open_a == booleanclass) and (classOf ro_open_p == booleanclass)) then
+			(
+				ro_m.open = ro_open_m
+				ro_s.open = ro_open_s
+				ro_a.open = ro_open_a
+				ro_p.open = ro_open_p
+			)
+			else
+			(
+				ro_m.open = true
+				ro_s.open = false
+				ro_a.open = false
+				ro_p.open = false
+			)
+		)
+		--Initialize script references
+		pbs = (pathconfig.getdir #userscripts) + ( "\\maxboy\\pipeboy_settings.ini")
+		pipeboysettings = (pathconfig.getdir #userscripts) + ( "\\maxboy\\pipeboy_projectsettings.ms")
+		pipeboyanimsetup = (pathconfig.getdir #userscripts) + ( "\\maxboy\\pipeboy_animsetup.ms")
 
 		--Setup interface data
-		LoadVariables()
+		loadvariables()
 
-		ro_p.currentProject.items = projectArray
-		ro_p.currentProject.selection = currentProjectSelected
+		--Try and load sequences
+		loadsequences()
 
-		enableSceneRedraw()
-		renderSceneDialog.update()
+		--Set current selected project from scene memory
+		ro_p.currentproject.items = projectarray
+		ro_p.currentproject.selection = currentprojectselected
+
+		--Set asset type selection from scene memory
+		ro_a.istype.selection = currentassetselected
+
+		allowStorePersistance = true
+
+		--Force a UI update
+		cbf_updateui()
+
+		--Add callbacks for opening a new file while pipeboy is open to update relevant menu items
+		callbacks.removescripts #filepostopen  id:#cb_updateui
+		callbacks.addscript #filepostopen "cbf_updateui_fn()" id:#cb_updateui
+
+		--Just to be safe, enable scene redraw
+		enablesceneredraw()
+		renderscenedialog.update()
+	)
+
+	--Destruct callbacks when closed
+	on pipeboy close do
+	(
+		callbacks.removescripts #filepostopen  id:#cb_updateui
 	)
 )
 
-try(destroyDialog PipeBoy)catch()
-createDialog PipeBoy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,150] width:235 height:90
+try(destroydialog pipeboy)catch()
+createdialog pipeboy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,150] height:baseHeight width:235
 )

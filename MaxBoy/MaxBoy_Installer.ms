@@ -37,11 +37,13 @@
 	copyFile ( FilteredPath + "\\MaxBoy_Functions.ms" ) c_functions
 
 	local settingsPath = (mainPath + "\\PipeBoy_Settings.ini")
+	--local settingsPath = (FilteredPath + "\\PipeBoy_Settings.ini")
 
 	if (existFile(settingsPath) == false) then
 	(
 		--Only copy settings if there is no settings file
 		copyFile ( FilteredPath + "\\PipeBoy_Settings.ini" ) c_settings
+		print("Copied settings file to: " + c_settings)
 	)
 	else
 	(
@@ -54,7 +56,6 @@
 	deleteFile (FilteredPath + "\\MaxBoy_Functions.ms")
 	*/
 
-	print("Copied settings file to: " + c_settings)
 	print("Copied project settings script to: " + c_projectSettings)
 	print("Copied anim setup script to: " + c_animSetup)
 	print("Copied anim baker script to: " + c_animBaker)
@@ -70,7 +71,6 @@
 	toolTip:"Pipeline tool for game asset creation"
 	(
 		local pbPath = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy.ms" )
-
 		fileIn pbPath
 	)
 
@@ -81,7 +81,18 @@
 	toolTip:"Toolbox with functions to assist content creation"
 	(
 		local tbPath = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\ToolBoy.ms" )
-
 		fileIn tbPath
+	)
+
+	--Has to run installer script from scripts folder once to work after each max launch!
+	MacroScript PipeBoyUpdate
+	category:"MaxBoy"
+	internalCategory:"MaxBoyTools"
+	buttonText:"Update"
+	toolTip:"Quick installer handle"
+	(
+		--local pbPath = mainPath + "\\MaxBoy_Installer.ms"
+		local pbPath = getThisScriptFilename() as string
+		fileIn pbPath
 	)
 )
