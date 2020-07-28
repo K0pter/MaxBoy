@@ -557,8 +557,15 @@ rollout pipeboy "pipeboy"
 			(
 				stripPrefixes(accessoryCopies)
 
+				printc("[ Accessory Nodes ]")
+				printc(accessoryCopies)
+
 				if (s_ac_lockroot == true) do
 				(
+					--Start with baking down rig bones to release constraints
+					BakeKeys collection:accessoryCopies r_start:r_start r_end:r_end
+
+					--Set up root constraints
 					local rootLocker = point name:"RootLocker" size:20
 
 					pc = Position_Constraint()
@@ -570,11 +577,12 @@ rollout pipeboy "pipeboy"
 			        occ = oc.constraints
 			        occ.appendTarget rootLocker 100.0
 
-					accessoryCopies[1].pos.controller = pc
-					accessoryCopies[1].rotation.controller = oc
-
-					accessoryCopies[2].pos.controller = pc
-					accessoryCopies[2].rotation.controller = oc
+			        --Apply constraints in certain depth in rig
+			        for i = 1 to s_ac_LockRootDepth do
+			        (
+						accessoryCopies[i].pos.controller = pc
+						accessoryCopies[i].rotation.controller = oc
+			        )
 				)
 
 				--Only select defined collection for export
@@ -847,7 +855,7 @@ rollout pipeboy "pipeboy"
 				return()
 			)
 
-			print(" { Starting new export process... } ")
+			print(" { Export } ")
 
 			loadvariables() -- double check saved variables
 			refreshrollouts() --same for rollouts
@@ -878,7 +886,7 @@ rollout pipeboy "pipeboy"
 				return()
 			)
 
-			print(" { Starting new export process... } ")
+			print(" { Export selection } ")
 
 			loadvariables() -- double check saved variables
 			refreshrollouts() --same for rollouts
@@ -909,7 +917,7 @@ rollout pipeboy "pipeboy"
 				return()
 			)
 
-			print(" { Starting new export process... } ")
+			print(" { Export animation } ")
 
 			clearselection()
 

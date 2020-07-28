@@ -1,6 +1,9 @@
 
 (
-rollout Baker "AnimBaker v10" width:200 height: 240 (
+--Include function lib
+include "$userscripts\maxboy\maxboy_functions.ms"
+
+rollout Baker "AnimBaker v10.1" width:200 height: 240 (
 
 	global transformList = #();
 	global nodeList = #();
@@ -22,7 +25,7 @@ rollout Baker "AnimBaker v10" width:200 height: 240 (
 		button BakeObject "[  BAKE  ]" width:175 align:#center
 		pickbutton refPick "<< Pick Reference >>" width:175 align:#center
 
-		dropdownlist bakeMethod "Method" items:#("Reference", "Dummy", "Start") toolTip:"Choose which bake method to use \n\n Reference :: Align to reference node \n Dummy :: Bake to new dummy node \n Start :: Use start frame as anchor point"
+		dropdownlist bakeMethod "Method" items:#("Regular", "Reference", "Dummy", "Start") toolTip:"Choose which bake method to use \n\n Regular :: Bakes all keys, resets controller \n Reference :: Align to reference node \n Dummy :: Bake to new dummy node \n Start :: Use start frame as anchor point"
 
 		--checkbox useRef "  -  Use reference" toolTip:"Lock object to reference" checked:true
 		--checkbox bakeToDummy "  -  Bake to dummy" toolTip:"Bake animation data down to a separate dummy object"
@@ -144,7 +147,7 @@ rollout Baker "AnimBaker v10" width:200 height: 240 (
 		--pleb = $selection[1]
 		--ref = $selection[2]
 
-		if $ != undefined then
+		if (selection.count != 0) then
 		(
 			for o in selection do
 			(
@@ -162,213 +165,7 @@ rollout Baker "AnimBaker v10" width:200 height: 240 (
 				)
 			)
 
-
-			with redraw off
-			(
-			try
-			(
-				disableSceneRedraw()
-
-				free selectionArray
-				selectionArray = selection
-				tempTransformArray = #()--Store temp transform objects into array
-
-				global tf = #()--Transform array
-
-				local collectedFirstFrameData = false
-				local StartFrameTransforms = #()
-
-				--Initiate copying pass index var
-				local copyPass = 0
-
-				for t = range_start.value to range_end.value do
-				(
-					copyPass += 1
-
-					local ObjectData = #()
-					local ObjectKeys = #()
-
-					for i = 1 to selectionArray.count do
-					(
-						obj = selectionArray[i]
-
-						if obj != undefined then
-						(
-							if (collectedFirstFrameData == false) do
-							(
-								if (bakeMethod.selection == 3) do
-								(
-									--Collect first frame transform data and store into array
-									at time range_start.value
-									(
-										local firstFrameTrans = in coordsys world obj.transform
-									)
-
-									append StartFrameTransforms firstFrameTrans
-								)
-							)
-
-							at time t
-							(
-								local transformAtFrame = in coordsys world obj.transform
-							)
-
-							append ObjectData obj
-							append ObjectKeys transformAtFrame
-
-							local ObjectPackage = #(ObjectData, ObjectKeys)
-
-							--print("Package: " + ObjectPackage as string)
-
-							tf[copyPass] = ObjectPackage
-						)
-						else
-						(
-							print("Undefined object, ignoring.")
-						)
-					)
-
-					--After first pass of processing, set to not collect further data
-					collectedFirstFrameData = true
-				)
-
-				--Are we baking to dummy or no? Reset controllers or make dummies.
-				if (bakeMethod.selection != 2) then
-				(
-					--Fix object controllers--
-					for obj in selectionArray do
-					(
-						local testResult = true
-						--Make sure you're checking a controller and not Matrix3
-						try (classOf obj.transform.controller) catch (testResult = false) --Throws error if it's a bad cast
-
-						--print("TestResult: " + testResult as string)
-						print(classOf obj.transform.controller)
-
-						--Did we pass the test?
-						if (testResult == true) do
-						(
-							local testController = false
-							local controllersToTest = #(PRS, Link_Constraint, transform_script)
-
-							for c in controllersToTest do
-							(
-								if (classOf obj.transform.controller == c) do ( testController = true )
-							)
-							--Only do reset operation if controller is of type PRS (Position/Rotation/Scale)
-							if (testController == true) do
-							(
-								if (KeepControllers.state == false) do
-								(
-									obj.transform.controller = prs()
-									obj.position.controller = position_XYZ() --Do this steps to make sure controllers get reset fully
-									obj.rotation.controller = Euler_XYZ() --Do this steps to make sure controllers get reset fully
-								)
-							)
-						)
-					)
-				)
-				else
-				(
-					local bakeDummies = #()--Store temp transform objects into array
-					animate off
-					--Make dummy objects to apply baked data to--
-					for obj in selectionArray do
-					(
-						local bd = Point name:("baked_" + obj.name as string) size:10
-						bd.transform.controller = prs()
-						bd.position.controller = position_XYZ()
-						bd.rotation.controller = Euler_XYZ()
-
-						bd.transform = obj.transform
-
-						append bakeDummies bd
-					)
-
-					--Transfer temp array of new bake data dummies over to become selection array
-					free selectionArray
-					selectionArray = bakeDummies
-				)
-
-				--Initiate pasting pass index var
-				local pastePass = 0
-
-				local virtualStartFrame = range_start.value
-				local virtualEndFrame = range_end.value
-				local stepBasis = 1
-
-				--Flip start/ end frames depending on if we're reversing or not
-				if (ReverseAnimation.state == true) do
-				(
-					virtualStartFrame = range_end.value
-					virtualEndFrame = range_start.value
-					stepBasis = -1 --Go in reverse in for loop
-				)
-
-				/*Debug for loop stepping
-				print("start: " + virtualStartFrame as string)
-				print("end: " + virtualEndFrame as string)
-
-				for t in virtualStartFrame to virtualEndFrame by stepBasis do
-				(
-					print("t: " + t as string)
-				)
-				*/
-
-				--Paste to temp transforms pass--
-				for t in virtualStartFrame to virtualEndFrame by stepBasis do
-				(
-					--print("t: " + t as string)
-
-					--Start from 0 and continue in the arrays from there
-					pastePass += 1
-
-					for i = 1 to selectionArray.count do
-					(
-						animate off
-
-						in coordsys world
-						(
-							local getPackage = tf[pastePass]
-							local getPackageObject = getPackage[1][i]
-							local getPackageFrames = getPackage[2][i]
-
-							--Get object based on name if we're baking to a dummy
-							if (bakeMethod.selection == 2) do
- 								getPackageObject = getNodeByName("baked_" + getPackage[1][i].name)
-
-							--print(("Selection: " + getPackageObject as string) + (" at frame: " + t as string))
-
-							--Apply fetched transform to object
-							at time t
-							(
-								animate on
-
-								case bakeMethod.selection of
-								(
-									1: ( getPackageObject.transform = refPick.object.transform ) --Ref
-									2: ( getPackageObject.transform = getPackageFrames ) --Dummy
-									3: ( getPackageObject.transform = StartFrameTransforms[i] ) --Start
-								)
-							)
-						)
-					)
-				)
-
-				free bakeDummies
-				free tempTransformArray
-				free selectionArray
-				free ObjectData
-				free ObjectKeys
-			)
-			catch
-			(
-				enableSceneRedraw()
-				messagebox("Something messed up!") title:"Error!"
-
-				throw()
-			)
-			)
+			BakeKeys collection:(selection as array) r_start:(range_start.value) r_end:(range_end.value) method:(bakeMethod.selection) reverse:(ReverseAnimation.state) ref:(refPick.object) keepController:(KeepControllers.state)
 
 			--Reset animation sate and allow redraw
 			enableSceneRedraw()
