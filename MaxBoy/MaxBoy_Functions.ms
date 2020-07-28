@@ -102,52 +102,18 @@ fn CopyNodes collection:(selection as array) type:#copy uniqueNames:false =
 )
 
 --Generic node collecting form with prefix function
-fn collectObjects prefix:"" =
+fn collectObjects =
 (
-	--print("Cleaning existing node list")
-	free nodeList
-
-	local tempArray = #()
-
-	if (selection.count == 0) then
+	if (selection.count != 0) then
 	(
-		if (s_usePrefix == true) then
-		(
-			tempArray = getPrefixObjects pre:prefix
-		)
-		else
-		(
-			local tryAgain = queryBox "Nothing selected, use prefix and try again?" title:"Nothing selected!"
-
-			if (tryAgain == true) then
-			(
-				tempArray = getPrefixObjects pre:prefix
-
-				if (tempArray.count == 0) do
-				(
-					messageBox "No objects with given prefix found!" title:"No prefix objects!"
-				)
-			)
-			else
-			(
-				clearListener()
-				messageBox "No objects with given prefix found!" title:"No prefix objects!"
-				print("No objects with given prefix found!")
-				return()
-			)
-		)
+		local tempArray = selection as array
+		return tempArray
 	)
 	else
 	(
-		for obj in selection do
-		(
-			append tempArray obj
-		)
+		messageBox "Empty selection!" title:"Selection error"
+		return()
 	)
-
-	local tArray = for i in tempArray collect i
-
-	return tArray
 )
 
 --Selects all children under supplied node

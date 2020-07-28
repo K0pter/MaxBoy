@@ -94,7 +94,7 @@ rollout ToolBoy "ToolBoy"
 			(
 				selectionArray = #($)
 
-				select(getChildren(selection[1]))
+				select(getChildren obj:selection[1])
 
 				join selectionArray selection
 
@@ -135,8 +135,7 @@ rollout ToolBoy "ToolBoy"
 
 
 					--Copy nodes to make controllers for
-					local nodeCopies = #()
-					CopyNodes tempArray #copy &nodeCopies
+					local nodeCopies = CopyNodes collection:tempArray
 
 					--Create container for node hierarchy indexes
 					local indexArray = #()
@@ -358,7 +357,7 @@ rollout ToolBoy "ToolBoy"
 
 			with undo off with redraw off
 			(
-				local collectionArray = collectObjects s_bPrefix
+				local collectionArray = collectObjects()
 
 				if (collectionArray == undefined) then
 				(
@@ -377,8 +376,7 @@ rollout ToolBoy "ToolBoy"
 				)
 
 				--Copy nodes to make controllers for
-				local controllerCopies = #()
-				CopyNodes collectionArray #copy &controllerCopies
+				local controllerCopies = CopyNodes collection:collectionArray
 
 				--Create container for node hierarchy indexes
 				local indexArray = #()
@@ -558,15 +556,15 @@ rollout ToolBoy "ToolBoy"
 
 			if (s_usePrefix == true) then
 			(
-				_BoneArray = getPrefixObjects(s_bPrefix)
-				_ControllerArray = getPrefixObjects(s_cPrefix)
+				_BoneArray = getPrefixObjects pre:s_bPrefix
+				_ControllerArray = getPrefixObjects pre:s_cPrefix
 			)
 			else
 			(
 				if (selection.count != 0) then
 				(
 					_ControllerArray = (selection as array)
-					_BoneArray = getChildren(ConstraintTarget.object)
+					_BoneArray = getChildren obj:ConstraintTarget.object
 				)
 				else
 				(
@@ -629,9 +627,9 @@ rollout ToolBoy "ToolBoy"
 
 			with redraw off
 			(
-				local tempArray = collectObjects 1
+				local tempArray = collectObjects()
 
-				if (tempArray == undefined) do (return())
+				if (tempArray == undefined or tempArray.count == 0) do (return())
 
 				--print("List is ready!")
 				print("...")
@@ -681,7 +679,7 @@ rollout ToolBoy "ToolBoy"
 
 			with redraw off
 			(
-				local tempArray = collectObjects 1
+				local tempArray = collectObjects()
 
 				if (tempArray == undefined) do (return())
 
@@ -735,7 +733,7 @@ rollout ToolBoy "ToolBoy"
 		group "Instancing"
 		(
 			button RefreshInstances "Refresh Instances" width:150 align:#left
-			label refLabel "[Instance Reference]" align:#left
+			label refLabel "[Instance Referenc§e]" align:#left
 			pickbutton InstanceRef "Instance Object" width:150 align:#left
 		)
 
@@ -748,7 +746,7 @@ rollout ToolBoy "ToolBoy"
 
 			local tempParents = #()
 			local tempTransforms = #()
-			local tempArray = collectObjects 1
+			local tempArray = collectObjects()
 
 			with redraw off
 			(
