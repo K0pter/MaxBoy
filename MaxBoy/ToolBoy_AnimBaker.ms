@@ -165,7 +165,7 @@ rollout Baker "AnimBaker v10.1" width:200 height: 240 (
 				)
 			)
 
-			BakeKeys collection:(selection as array) r_start:(range_start.value) r_end:(range_end.value) method:(bakeMethod.selection) reverse:(ReverseAnimation.state) ref:(refPick.object) keepController:(KeepControllers.state)
+			BakeKeys collection:(selection as array) rs:(range_start.value) re:(range_end.value) method:(bakeMethod.selection) rev:(ReverseAnimation.state) ref:(refPick.object) keepController:(KeepControllers.state)
 
 			--Reset animation sate and allow redraw
 			enableSceneRedraw()

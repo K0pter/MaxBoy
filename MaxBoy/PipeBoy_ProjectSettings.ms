@@ -131,7 +131,7 @@ fn LoadSettings =
 	local cp = selectedProject --Current project index
 	local tArray = (getINISetting PBS "MainData" "g_Projects")
 
-	if (cp == 0 OR cp == undefined) do (cp = 1)
+	if (cp == 0 or cp == undefined) do (cp = 1)
 
 	if (tArray != "") and (tArray != undefined) then
 	(

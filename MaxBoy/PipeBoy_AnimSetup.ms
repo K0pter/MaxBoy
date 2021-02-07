@@ -5,13 +5,12 @@ segments in the main PipeBoy tool.
 
 (
 --include "MaxBoy_Functions.ms"
-include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
+--include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
 
 --Globals
 persistent global path_settings, path_project, selectedProject
 --Rollouts
 global PipeBoy_AnimSetup
-global PipeBoy
 global rlt_addSequence
 global PBS
 global UpdateUI
@@ -167,22 +166,23 @@ fn LoadSettings =
 )
 
 --Main UI window--
-rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:275
+rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:355
 (
 	--include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
+	local baseHeight = 220
 
 	local spin_x = 32
-	local spin_y = 200
+	local spin_y = 280
 	local spin_o = 24
 	local spin_or = 68
 
 	group ""
 	(
-		combobox ui_sequences "Sequences" height:6
+		combobox ui_sequences "Sequences" height:12
 
-		button ui_button_addSequence "Add" pos:[70,142]
-		button ui_button_removeSequence "Remove" pos:[110,142]
-		button ui_button_saveSettings "Save" pos:[170,142]
+		button ui_button_addSequence "Add" pos:[70, baseHeight]
+		button ui_button_removeSequence "Remove" pos:[110, baseHeight]
+		button ui_button_saveSettings "Save" pos:[170, baseHeight]
 	)
 
 	group "Sequence Settings"
@@ -229,6 +229,10 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:275
 			ui_range_start.value = SequenceArray[ui_sequences.selection].range_start
 			ui_range_end.value = SequenceArray[ui_sequences.selection].range_end
 		)
+
+		--Try updating UI in PipeBoy
+		try(cbf_updateui_fn())catch()
+		--cbf_updateui()
 	)
 
 	on PipeBoy_AnimSetup open do
@@ -280,6 +284,9 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:275
 			--Delete in local array
 			deleteItem SequenceArray ui_sequences.selection
 
+			--Store removal change
+			SaveSettings()
+
 			--Update UI
 			TryUpdateUI()
 		)
@@ -309,6 +316,8 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:275
 		SequenceArray[ui_sequences.selection].range_start = ui_range_start.value
 
 		SaveSettings()
+
+		TryUpdateUI()
 	)
 
 	on ui_range_end changed val do
@@ -316,6 +325,8 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:275
 		SequenceArray[ui_sequences.selection].range_end = ui_range_end.value
 
 		SaveSettings()
+
+		TryUpdateUI()
 	)
 
 	on ui_ExportAccessory changed nState do
@@ -323,28 +334,54 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:275
 		SequenceArray[ui_sequences.selection].exportAccessory = nState
 
 		SaveSettings()
+
+		TryUpdateUI()
 	)
 
 
 	--[Actions for range UI]--
 	on GetStart pressed do
 	(
-		ui_range_start.value = ( sliderTime )
+		ui_range_start.value = sliderTime
+		SequenceArray[ui_sequences.selection].range_start = sliderTime
+
+		SaveSettings()
+
+		TryUpdateUI()
+	)
+
+	on GetStartRange pressed do
+	(
+		local f = ( normTime 0 as integer ) / ticksperframe
+
+		ui_range_start.value = f
+		SequenceArray[ui_sequences.selection].range_start = f
+
+		SaveSettings()
+
+		TryUpdateUI()
 	)
 
 	on GetEnd pressed do
 	(
 		ui_range_end.value = ( sliderTime )
-	)
+		SequenceArray[ui_sequences.selection].range_end = sliderTime
 
-	on GetStartRange pressed do
-	(
-		ui_range_start.value = ( normTime 0 as integer ) / ticksperframe
+		SaveSettings()
+
+		TryUpdateUI()
 	)
 
 	on GetEndRange pressed do
 	(
-		ui_range_end.value = ( normTime 1 as integer ) / ticksperframe
+		local f = ( normTime 1 as integer ) / ticksperframe
+
+		ui_range_end.value = f
+		SequenceArray[ui_sequences.selection].range_end = f
+
+		SaveSettings()
+
+		TryUpdateUI()
 	)
 )
 
@@ -395,6 +432,6 @@ rollout rlt_addSequence "Add Sequence" width:360 height:60
 	)
 )
 
-createDialog PipeBoy_AnimSetup pos:[1100,500]
+--createDialog PipeBoy_AnimSetup pos:[1100,500]
 --clearListener()
 )

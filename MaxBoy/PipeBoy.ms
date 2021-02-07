@@ -9,8 +9,14 @@ include "$userscripts\maxboy\maxboy_functions.ms"
 
 --initialize persistent globals
 persistent global currentprojectselected
-persistent global currentassetselected
+persistent global AssetTypeSelection
 persistent global printtoconsole
+
+--Global rollout references
+global ro_m
+global ro_s
+global ro_a
+global ro_p
 
 --remember which panels are open
 persistent global ro_open_m
@@ -21,6 +27,7 @@ persistent global ro_open_p
 --misc menu settings memory
 persistent global p_meshGrouper
 persistent global p_generateLods
+persistent global p_separateMeshFiles
 persistent global p_useSequenceList
 persistent global p_exportAccessory
 
@@ -79,8 +86,150 @@ struct sequence
 --initialize local settings "container" to easily store and update for later
 global ls = localsettings()
 
+
+--loads project variables
+fn loadvariables =
+(
+	--setup which project to load from file
+	--print("pbs: " + pbs)
+	tempprojectarray = getinisetting pbs "maindata" "g_projects"
+	global projectarray = execute tempprojectarray
+
+	if (currentprojectselected == undefined or currentprojectselected == 0) then
+		t_selectproject = 1
+		else
+		t_selectproject = currentprojectselected
+
+	global currentprojectselected = t_selectproject
+
+	if (projectarray[t_selectproject] != undefined) then
+	(
+		local pro = (projectarray[t_selectproject] as string)
+
+		global p_projectroot 		= (getinisetting pbs pro "p_projectroot")
+		global p_projectsource 		= (getinisetting pbs pro "p_projectsource")
+		global p_projectasset 		= (getinisetting pbs pro "p_projectasset")
+
+		global s_engine 			= (getinisetting pbs pro "s_engine") as integer
+		global s_importfromraw 		= (getinisetting pbs pro "s_importfromraw") as booleanclass
+		global s_forwardaxis 		= (getinisetting pbs pro "s_forwardaxis") as integer
+		global s_meshgroupprefix 	= (getinisetting pbs pro "s_meshgroupprefix")
+
+		global s_boneprefix 		= (getinisetting pbs pro "s_boneprefix")
+		global s_boneroot 			= (getinisetting pbs pro "s_boneroot")
+		global s_alignprefix 		= (getinisetting pbs pro "s_alignprefix")
+
+		global s_ac_folder 			= (getinisetting pbs pro "s_ac_folder")
+		global s_ac_prefix 			= (getinisetting pbs pro "s_ac_prefix")
+		global s_ac_findintelligent = (getinisetting pbs pro "s_ac_findintelligent") as booleanclass
+		global s_ac_lockroot		= (getinisetting pbs pro "s_ac_lockroot") as booleanclass
+		global s_ac_lockrootdepth 	= (getinisetting pbs pro "s_ac_lockrootdepth") as integer
+
+		global s_ac_fileprefix 		= (getinisetting pbs pro "s_ac_fileprefix")
+		global s_ac_filesuffix 		= (getinisetting pbs pro "s_ac_filesuffix")
+		global s_ac_removefilepre 	= (getinisetting pbs pro "s_ac_removefilepre") as integer
+		global s_ac_removefilesuf 	= (getinisetting pbs pro "s_ac_removefilesuf") as integer
+
+		printc("loaded project: " + pro)
+	)
+	else
+	(
+		messagebox "project seems to be missing!" title:"missing project!"
+	)
+)
+
+--load from .boi file
+fn loadsequences =
+(
+	--call garbage collection to avoid i/o issues
+	gc()
+
+	if (maxfilename == "") do
+	(
+		printc("Won't attempt sequence load - scene is unsaved")
+		return()
+	)
+
+	--remove file name's extension
+	local filteredname = replace (maxfilename as string) (maxfilename.count - 3) 4 ""
+
+	--construct search path
+	local relativepath = ((getscriptlocation (getthisscriptfilename() as string) "pipeboy") + "\\animsetup\\" + filteredname + ".boi")
+
+	--convert to valid search path
+	local filepath = converttopath relativepath
+
+	if (doesfileexist filepath == false) do
+	(
+		printc("no file to load from @ " + (filepath as string))
+		return()
+	)
+
+	local ofile = openfile filepath mode:"r"
+
+	if (ofile != undefined) then
+	(
+		--print("loading sequences from >> " + relativepath)
+		sequencearray = #()
+
+		local i = 0
+
+		do
+		(
+			i += 1
+
+			local checkcurrent = ("[PipSeq_" + (i as string) + "]")
+
+			local searchresult = skiptostring ofile checkcurrent
+
+			if (searchresult != undefined) do
+			(
+				local skippos = ((filepos ofile) + 2)
+
+				--start reading sequence data
+				seek ofile skippos
+
+				local r_name = (readline ofile as string)
+
+				local r_expa = (readvalue ofile as booleanclass)
+				local r_fsta = (readvalue ofile as integer)
+				local r_fend = (readvalue ofile as integer)
+
+				local loadsequence = sequence sequenceName:(r_name) exportAccessory:r_expa range_start:r_fsta range_end:r_fend
+
+				append sequencearray loadsequence
+			)
+		) while (searchresult != undefined)
+
+		close ofile
+
+		--print("sequence array >> " + sequencearray as string)
+		if (sequencearray.count == 0) then
+		(
+			printc("Load Sequences :: [ Found (.boi) file, but found no sequences! ]")
+		)
+		else
+		(
+			printc("Load Sequences :: [ Loaded (" + (sequencearray.count as string) + ") sequences from file ]")
+		)
+	)
+	else
+	(
+		printc("Load Sequences :: [ Couldn't find (.boi) file to open! ]")
+	)
+
+	--Moved to trigger on UI update instead
+	--cbf_updateui()
+)
+
 fn cbf_updateui =
 (
+	--Load related settings
+	loadvariables()
+
+	--Load related scene sequence list
+	loadsequences()
+
 	if (ro_m != undefined) then
 	(
 		ro_m.anim_range_start.value = normtime 0
@@ -232,93 +381,88 @@ fn lodgenerator &obj lods =
 	clearselection()
 )
 
---load from .boi file
-fn loadsequences =
+fn GetExportLocation =
 (
-	--call garbage collection to avoid i/o issues
-	gc()
+	local pro = projectarray[currentprojectselected] as string
 
-	if (maxfilename == "") do
+	--Trim full file path name with project source path
+	local p_length = ((getinisetting pbs pro "p_projectsource").count)
+	local p_subpath = replace (maxfilepath as string) 1 (p_length) ""
+
+	--Build final path to file export location (Source or project location)
+	local p_fileexportpath = p_fileexportpath = pathconfig.appendpath p_projectroot p_subpath
+
+	if (s_importfromraw) do
 	(
-		printc("Won't attempt sequence load - scene is unsaved")
-		return()
+		p_fileexportpath = (maxfilepath as string)
 	)
 
-	--remove file name's extension
-	local filteredname = replace (maxfilename as string) (maxfilename.count - 3) 4 ""
-
-	--construct search path
-	local relativepath = ((getscriptlocation (getthisscriptfilename() as string) "pipeboy") + "\\animsetup\\" + filteredname + ".boi")
-
-	--convert to valid search path
-	local filepath = converttopath relativepath
-
-	if (doesfileexist filepath == false) do
-	(
-		printc("no file to load from @ " + (filepath as string))
-		return()
-	)
-
-	local ofile = openfile filepath mode:"r"
-
-	if (ofile != undefined) then
-	(
-		--print("loading sequences from >> " + relativepath)
-		sequencearray = #()
-
-		local i = 0
-
-		do
-		(
-			i += 1
-
-			local checkcurrent = ("[PipSeq_" + (i as string) + "]")
-
-			local searchresult = skiptostring ofile checkcurrent
-
-			if (searchresult != undefined) do
-			(
-				local skippos = ((filepos ofile) + 2)
-
-				--start reading sequence data
-				seek ofile skippos
-
-				local r_name = (readline ofile as string)
-
-				local r_expa = (readvalue ofile as booleanclass)
-				local r_fsta = (readvalue ofile as integer)
-				local r_fend = (readvalue ofile as integer)
-
-				local loadsequence = sequence sequenceName:(r_name) exportAccessory:r_expa range_start:r_fsta range_end:r_fend
-
-				append sequencearray loadsequence
-			)
-		) while (searchresult != undefined)
-
-		close ofile
-
-		--print("sequence array >> " + sequencearray as string)
-		if (sequencearray.count == 0) then
-		(
-			printc("Load Sequences :: [ Found (.boi) file, but found no sequences! ]")
-		)
-		else
-		(
-			printc("Load Sequences :: [ Loaded (" + (sequencearray.count as string) + ") sequences from file ]")
-		)
-	)
-	else
-	(
-		printc("Load Sequences :: [ Couldn't find (.boi) file to open! ]")
-	)
-
-	cbf_updateui()
+	--Return resulting path
+	return p_fileexportpath
 )
+
+fn PostExportCleanup =
+(
+	if (cleangroup != undefined) do
+	(
+		for o in cleangroup do ( if (isValidnode o) do ( delete o ) )
+		free cleangroup
+	)
+
+	if (safecopies != undefined) do
+	(
+		for o in safecopies do ( if (isValidnode o) do ( delete o ) )
+		free safecopies
+	)
+
+	if (exportgroup != undefined) do
+	(
+		for o in exportgroup do ( if (isValidnode o) do ( delete o ) )
+		free exportgroup
+	)
+
+	return()
+)
+
+fn TryExportCriteria trySelection:false tryCharacter:false =
+(
+	if ((getfilenamefile  maxfilename) == "") do
+	(
+		messagebox "Save scene first!" title:"Export error!"
+		return false
+	)
+
+	if (trySelection) do
+	(
+		if (selection.count == 0) do
+		(
+			messagebox "Empty selection!" title:"Export error!"
+			return false
+		)
+	)
+
+	if (tryCharacter) do
+	(
+		local cSel = ro_s.rigCharacter.selection
+		local aSel = ro_s.rigAccessory.selection
+
+		if (cSel == aSel) do
+		(
+			messagebox "Character and Accessory rigs are marked as the same!" title:"Export Error!"
+			return false
+		)
+	)
+
+	return true
+)
+
+--Dependent include (Sub-Floater)
+include "$userscripts\maxboy\pipeboy_animsetup.ms"
 
 --Base UI height
 local baseHeight = 94
 
-rollout pipeboy "pipeboy"
+rollout pipeboy "PipeBoy"
 (
 	--construct base ui "frame" for rollout windows
 	subrollout ui_base width:235 height:baseHeight pos:[0,0]
@@ -338,64 +482,16 @@ rollout pipeboy "pipeboy"
 			ui_base.height -= trollout.height
 			ttarget.height -= trollout.height
 	    )
+
+	    cbf_updateui()
 	)
 
 	fn refreshrollouts =
 	(
-		global ro_m = pipeboy.ui_rolloutgroup_main
-		global ro_s = pipeboy.ui_rolloutgroup_sequence
-		global ro_a = pipeboy.ui_rolloutgroup_asset
-		global ro_p = pipeboy.ui_rolloutgroup_project
-	)
-
-	fn loadvariables =
-	(
-		--setup which project to load from file
-		--print("pbs: " + pbs)
-		tempprojectarray = getinisetting pbs "maindata" "g_projects"
-		global projectarray = execute tempprojectarray
-
-		if (currentprojectselected == undefined or currentprojectselected == 0) then
-			t_selectproject = 1
-			else
-			t_selectproject = currentprojectselected
-
-		global currentprojectselected = t_selectproject
-
-		if (projectarray[t_selectproject] != undefined) then
-		(
-			local pro = (projectarray[t_selectproject] as string)
-
-			global p_projectroot 		= (getinisetting pbs pro "p_projectroot")
-			global p_projectsource 		= (getinisetting pbs pro "p_projectsource")
-			global p_projectasset 		= (getinisetting pbs pro "p_projectasset")
-
-			global s_engine 			= (getinisetting pbs pro "s_engine") as integer
-			global s_importfromraw 		= (getinisetting pbs pro "s_importfromraw") as booleanclass
-			global s_forwardaxis 		= (getinisetting pbs pro "s_forwardaxis") as integer
-			global s_meshgroupprefix 	= (getinisetting pbs pro "s_meshgroupprefix")
-
-			global s_boneprefix 		= (getinisetting pbs pro "s_boneprefix")
-			global s_boneroot 			= (getinisetting pbs pro "s_boneroot")
-			global s_alignprefix 		= (getinisetting pbs pro "s_alignprefix")
-
-			global s_ac_folder 			= (getinisetting pbs pro "s_ac_folder")
-			global s_ac_prefix 			= (getinisetting pbs pro "s_ac_prefix")
-			global s_ac_findintelligent = (getinisetting pbs pro "s_ac_findintelligent") as booleanclass
-			global s_ac_lockroot		= (getinisetting pbs pro "s_ac_lockroot") as booleanclass
-			global s_ac_lockrootdepth 	= (getinisetting pbs pro "s_ac_lockrootdepth") as integer
-
-			global s_ac_fileprefix 		= (getinisetting pbs pro "s_ac_fileprefix")
-			global s_ac_filesuffix 		= (getinisetting pbs pro "s_ac_filesuffix")
-			global s_ac_removefilepre 	= (getinisetting pbs pro "s_ac_removefilepre") as integer
-			global s_ac_removefilesuf 	= (getinisetting pbs pro "s_ac_removefilesuf") as integer
-
-			printc("loaded project: " + pro)
-		)
-		else
-		(
-			messagebox "project seems to be missing!" title:"missing project!"
-		)
+		ro_m = pipeboy.ui_rolloutgroup_main
+		ro_s = pipeboy.ui_rolloutgroup_sequence
+		ro_a = pipeboy.ui_rolloutgroup_asset
+		ro_p = pipeboy.ui_rolloutgroup_project
 	)
 
 	fn rotatepivotonlyengine obj =
@@ -447,14 +543,34 @@ rollout pipeboy "pipeboy"
 
 		if (r_start == r_end) do (r_end = r_end + 1) --if range is 0 long, add one frame to export properly
 
-		local pro = projectarray[currentprojectselected] as string
-
-		--update filename to base asset name from
+		--[Set up file naming base variables]--
+		--Update filename to base asset name from
 		gname = (getfilenamefile  maxfilename)
+
+		local p_fileexportpath = GetExportLocation()
+
+		--Make missing destination folders in windows if they're missing
+		if (not doesfileexist p_fileexportpath or not getfileattribute p_fileexportpath #directory) do
+		(
+			--path folder not found, create folder
+			printc("path folder not found, creating folder.")
+			makedir p_fileexportpath
+		)
+
+		--Filename-based naming as a baseline
+		local fileexportname = (p_fileexportpath + gname + ro_a.fileextension.text + ".fbx") as string
+
+		--Only select defined collection for export
+		clearSelection()
+		--select exportCollection
+		selectmore exportCollection
+
+		if (delayPrint == false) do ( printc(selection) )
 
 		theplugin = pluginmanager
 		theplugin.loadclass fbxexporter
 
+		--Setup base export params
 		fbxexportersetparam "smoothinggroups" true
 		fbxexportersetparam "tangentspaceexport" true
 		fbxexportersetparam "ascii" false
@@ -471,165 +587,226 @@ rollout pipeboy "pipeboy"
 		(
 			1:
 			(
+				--Setup type specific export params
 				fbxexportersetparam "animation" false
+				fbxexportersetparam "pushsettings"
+
+				--Perform export operation
+				exportfile (fileexportname) #noprompt selectedonly:true using:theplugin
+
+				if (delayPrint == false) then ( print("Exported at >> " + fileexportname as string) ) else ( append exportResults ("Exported at >> " + fileexportname) )
 			)
 
 			2:
 			(
+				--Setup type specific export params
 				fbxexportersetparam "animation" true
 				fbxexportersetparam "bakeanimation" true
 				fbxexportersetparam "bakeresampleanimation" true
 				fbxexportersetparam "bakeframestart" r_start
 				fbxexportersetparam "bakeframeend" r_end
+				fbxexportersetparam "pushsettings"
 
-				--resize active range to exporting range length to avoid "dead frames"
+				--Resize active range to exporting range length to avoid "dead frames"
 				animationrange = interval r_start r_end
-			)
-		)
 
-		--set export params
-		fbxexportersetparam "pushsettings"
-
-		local p_length = ((getinisetting pbs pro "p_projectsource").count)
-		local p_subpath = replace (maxfilepath as string) 1 (p_length) ""
-
-		--build final path to file export location
-		if (s_importfromraw == false) then
-		(
-			local p_fileexportpath = pathconfig.appendpath p_projectroot p_subpath
-		)
-		else
-		(
-			local p_fileexportpath = (maxfilepath as string)
-		)
-
-		if (not doesfileexist p_fileexportpath or not getfileattribute p_fileexportpath #directory) do
-		(
-			--path folder not found, create folder
-			printc("path folder not found, creating folder.")
-			makedir p_fileexportpath
-		)
-
-		--regular filename-based naming
-		local fileexportname = (p_fileexportpath + gname + ro_a.fileextension.text + ".fbx") as string
-
-		--Modify name if we're using sequence list
-		if (asequencename != unsupplied) do
-		(
-			--animation sequence naming
-			fileexportname = (p_fileexportpath + (asequencename as string) + ro_a.fileextension.text + ".fbx") as string
-		)
-
-		--Only select defined collection for export
-		clearSelection()
-		select exportCollection
-
-		--Perform export operation
-		exportfile (fileexportname) #noprompt selectedonly:true using:theplugin
-
-		if (delayPrint == false) then ( print("exported at >> " + fileexportname as string) ) else ( append exportResults ("exported at >> " + fileexportname) )
-
-		--[ export accessory ]--
-		if (aexport == true) do
-		(
-			local aSel = ro_s.rigAccessory.selection
-
-			local accessoryCopies = undefined
-
-			if (aSel != 0 and aSel != 1) then
-			(
-				local accessoryChildren = getPrefixObjects pre:ro_s.rigAccessory.selected
-				accessoryCopies = CopyNodes collection:accessoryChildren
-			)
-			else
-			(
-				--local accessory = LocateAccessory pre:s_ac_prefix
-				local accessory = ro_s.pickAccessory.object
-
-				if (isValidNode accessory) do
+				--Modify filename if we're using sequence list
+				if (asequencename != unsupplied) do
 				(
-					local accessoryChildren = getChildren obj:accessory
-					accessoryCopies = CopyNodes collection:accessoryChildren
-				)
-			)
-
-			if (accessoryCopies != undefined) then
-			(
-				stripPrefixes(accessoryCopies)
-
-				printc("[ Accessory Nodes ]")
-				printc(accessoryCopies)
-
-				if (s_ac_lockroot == true) do
-				(
-					--Start with baking down rig bones to release constraints
-					BakeKeys collection:accessoryCopies r_start:r_start r_end:r_end
-
-					--Set up root constraints
-					local rootLocker = point name:"RootLocker" size:20
-
-					pc = Position_Constraint()
-			        oc = Orientation_Constraint()
-
-			        pcc = pc.constraints
-			        pcc.appendTarget rootLocker 100.0
-
-			        occ = oc.constraints
-			        occ.appendTarget rootLocker 100.0
-
-			        --Apply constraints in certain depth in rig
-			        for i = 1 to s_ac_LockRootDepth do
-			        (
-						accessoryCopies[i].pos.controller = pc
-						accessoryCopies[i].rotation.controller = oc
-			        )
+					--animation sequence naming
+					fileexportname = (p_fileexportpath + (asequencename as string) + ro_a.fileextension.text + ".fbx") as string
 				)
 
-				--Only select defined collection for export
-				clearSelection()
-				select accessoryCopies
-
-				local accessoryexportname = ""
-				local adjustedname = gname
-
-				if (asequencename != unsupplied) do (adjustedname = (asequencename as string))
-
-				local accessoryname = replace adjustedname 1 s_ac_removefilepre s_ac_fileprefix
-				accessoryname = replace accessoryname (accessoryname.count - s_ac_removefilesuf) s_ac_removefilesuf s_ac_filesuffix
-
-				local accessoryfolder =  ((s_ac_folder as string) + "\\")
-
-				accessoryexportname = (p_fileexportpath + accessoryfolder + accessoryname + ro_a.fileextension.text + ".fbx") as string
-
-				exportfile (accessoryexportname) #noprompt selectedonly:true using:theplugin
-
-				for o in accessoryCopies do
+				--[ Export accessory ]--
+				if (aexport == true) do
 				(
-					if (isValidNode o) do
+					local aSel = ro_s.rigAccessory.selection
+
+					local accessoryCopies = undefined
+
+					if (aSel != 0 and aSel != 1) then
 					(
-						delete o
+						local accessoryChildren = getPrefixObjects pre:ro_s.rigAccessory.selected
+						accessoryCopies = CopyNodes collection:accessoryChildren
+					)
+					else
+					(
+						--local accessory = LocateAccessory pre:s_ac_prefix
+						local accessory = ro_s.pickAccessory.object
+
+						if (isValidNode accessory) do
+						(
+							local accessoryChildren = getChildren obj:accessory
+							accessoryCopies = CopyNodes collection:accessoryChildren
+						)
+					)
+
+					if (accessoryCopies != undefined) then
+					(
+						stripPrefixes(accessoryCopies)
+
+						printc("[ Accessory Nodes ]")
+						printc(accessoryCopies)
+
+						if (s_ac_lockroot == true) do
+						(
+							--Start with baking down rig bones to release constraints
+							BakeKeys collection:accessoryCopies rs:r_start re:r_end
+
+							--Set up root constraints
+							local rootLocker = point name:"RootLocker" size:20
+
+							pc = Position_Constraint()
+					        oc = Orientation_Constraint()
+
+					        pcc = pc.constraints
+					        pcc.appendTarget rootLocker 100.0
+
+					        occ = oc.constraints
+					        occ.appendTarget rootLocker 100.0
+
+					        --Apply constraints in certain depth in rig
+					        for i = 1 to s_ac_LockRootDepth do
+					        (
+								accessoryCopies[i].pos.controller = pc
+								accessoryCopies[i].rotation.controller = oc
+					        )
+						)
+
+						--Only select defined collection for export
+						clearSelection()
+						selectmore accessoryCopies
+
+						local accessoryexportname = ""
+						local adjustedname = gname
+
+						if (asequencename != unsupplied) do (adjustedname = (asequencename as string))
+
+						local accessoryname = replace adjustedname 1 s_ac_removefilepre s_ac_fileprefix
+						accessoryname = replace accessoryname (accessoryname.count - s_ac_removefilesuf) s_ac_removefilesuf s_ac_filesuffix
+
+						local accessoryfolder =  ((s_ac_folder as string) + "\\")
+
+						accessoryexportname = (p_fileexportpath + accessoryfolder + accessoryname + ro_a.fileextension.text + ".fbx") as string
+
+						--Make missing destination folders in windows if they're missing
+						if (not doesfileexist (p_fileexportpath + accessoryfolder) or not getfileattribute (p_fileexportpath + accessoryfolder) #directory) do
+						(
+							--path folder not found, create folder
+							printc("Accessory folder not found, creating folder.")
+							makedir (p_fileexportpath + accessoryfolder)
+						)
+
+						exportfile (accessoryexportname) #noprompt selectedonly:true using:theplugin
+
+						for o in accessoryCopies do
+						(
+							if (isValidNode o) do
+							(
+								delete o
+							)
+						)
+
+						if (isValidnode rootLocker) do (delete rootLocker)
+
+						if (delayPrint == false) then ( print("Exported accessory at >> " + accessoryexportname) ) else ( append exportResults ("Exported accessory at >> " + accessoryexportname) )
+					)
+					else
+					(
+						print("Export :: No accessory found!")
 					)
 				)
 
-				if (isValidnode rootLocker) do (delete rootLocker)
+				--Regrab selection
+				clearSelection()
+				selectmore exportCollection
 
-				if (delayPrint == false) then ( print("exported accessory at >> " + accessoryexportname) ) else ( append exportResults ("exported accessory at >> " + accessoryexportname) )
+				--Perform export operation
+				exportfile (fileexportname) #noprompt selectedonly:true using:theplugin
+
+				--[ Finish up export sequence]--
+				animationrange = tempinterval
+
+				if (delayPrint == false) then ( print("Exported at >> " + fileexportname as string) ) else ( append exportResults ("Exported at >> " + fileexportname) )
 			)
-			else
+
+			3:
 			(
-				print("Export :: No accessory found!")
+				--Setup type specific export params
+				fbxexportersetparam "animation" false
+				fbxexportersetparam "pushsettings"
+
+				--Perform export operation
+				for e_mesh in exportCollection do
+				(
+					if (e_mesh != undefined) do
+					(
+						--Skip targeting collision meshes (Wait for actual mesh to bring collision with it) AND folder nodes AND export parent node
+						if ((matchpattern e_mesh.name pattern:("UCX_*") == false) and
+							(matchpattern e_mesh.name pattern:("UBX_*") == false) and
+							(matchpattern e_mesh.name pattern:("UCP_*") == false) and
+							(matchpattern e_mesh.name pattern:("USP_*") == false) and
+							(matchpattern e_mesh.name pattern:("FLD_*") == false) and
+							(matchpattern e_mesh.name pattern:("exportparent") == false)) do
+						(
+							clearSelection()
+
+							local exportSelectionSeparated = #(e_mesh)
+
+							--Get customized collision for unreal
+							local convexSearchString  = ("UCX_" + e_mesh.name + "*") as string
+							local boxSearchString     = ("UBX_" + e_mesh.name + "*") as string
+							local capsuleSearchString = ("UCP_" + e_mesh.name + "*") as string
+							local sphereSearchString  = ("USP_" + e_mesh.name + "*") as string
+
+							for n in $* do
+							(
+								if ((matchpattern n.name pattern:(convexSearchString)  == true) or
+									(matchpattern n.name pattern:(boxSearchString)     == true) or
+									(matchpattern n.name pattern:(capsuleSearchString) == true) or
+									(matchpattern n.name pattern:(sphereSearchString)  == true))do
+								(
+									append exportSelectionSeparated n
+								)
+							)
+
+							select exportSelectionSeparated
+
+							--Base filename on mesh name
+							local MeshFileName = (p_fileexportpath + e_mesh.name + ro_a.fileextension.text + ".fbx") as string
+
+							--Try and apply folder structure based on parent type
+							if (e_mesh.parent != undefined) do
+							(
+								if (matchpattern e_mesh.parent.name pattern:("FLD_*") == true) do
+								(
+									local folderName = replace e_mesh.parent.name 1 4 ""
+									local folderPath = (p_fileexportpath + folderName + "\\")
+
+									--Make missing destination folders in windows if they're missing
+									if (not doesfileexist folderPath or not getfileattribute folderPath #directory) do ( makedir folderPath )
+
+									--Modify filename to match folder parent naming
+									MeshFileName = (folderPath + e_mesh.name + ro_a.fileextension.text + ".fbx") as string
+								)
+							)
+
+							exportfile (MeshFileName) #noprompt selectedonly:true using:theplugin
+
+							print("Exported file :: " + MeshFileName)
+						)
+					)
+				)
 			)
 		)
 
-		--[ finish up export sequence]--
-		animationrange = tempinterval
+		PostExportCleanup()
 
 		clearselection()
 
 		if (overrideredraw == false) do ( enablesceneredraw() )
 	)
 
-	--dependency function
 	fn PrepMesh collection:$* groupMesh:false lod:false lod_amount:3 =
 	(
 		refreshrollouts()
@@ -683,7 +860,8 @@ rollout pipeboy "pipeboy"
 				--clone export objects for non-destructive processing
 				local safecopies = CopyNodes collection:objectselection
 
-				append cleangroup safecopies
+				--append cleangroup safecopies --PENDING DEPRECATION
+				join cleangroup safecopies
 
 				--make all instances in selection unique (will be ignored otherwise)
 				instancemgr.makeobjectsunique safecopies #individual
@@ -792,11 +970,9 @@ rollout pipeboy "pipeboy"
 		(
 			enablesceneredraw()
 
-			for o in cleangroup do ( if (isValidnode o) do ( delete o ) )
-			for o in safecopies do ( if (isValidnode o) do ( delete o ) )
-			for o in exportgroup do ( if (isValidnode o) do ( delete o ) )
+			PostExportCleanup()
 
-			messagebox "something went wrong!" title:"error"
+			messagebox "Something went wrong during mesh cooking!" title:"error"
 
 			throw()
 		)
@@ -814,31 +990,30 @@ rollout pipeboy "pipeboy"
 
 		rotate exportparent (eulerangles 0 0 -90)
 
-		--collect combined objets and export them, then clean em' out
-		ExportProcess collection:exportgroup
-
-		for o in cleangroup do ( if (isValidnode o) do ( delete o ) )
-		for o in safecopies do ( if (isValidnode o) do ( delete o ) )
-		for o in exportgroup do ( if (isValidnode o) do ( delete o ) )
-
-		free cleangroup
-		free exportgroup
+		--Prep is done and applied to the export group, returning to called location
+		return()
 	)
 
-	rollout ui_rolloutgroup_main "export"
+	rollout ui_rolloutgroup_main "EXPORT"
     (
-		group "mesh"
+		group "General"
 		(
-			button export "Export" width:94 pos:[14,22]
-			button exportselection "Export Selection" width:94 pos:[116,22]
+			button Export "Export" width:94 pos:[14, 22]
+			button ExportSelection "Export Selection" width:94 pos:[116, 22]
 		)
 
-		group "animation"
+		group "Animation"
 		(
-			button exportanimation "Export Animation" width:94 pos:[14, 70]
+			button ExportAnimation "Export Animation" width:94 pos:[14, 70]
 
-			spinner anim_range_start "" pos:[115,73] width:42 height:16 range:[-10000,10000,normtime 0] type:#integer
-			spinner anim_range_end  "to " pos:[115+54,73] width:42 height:16 range:[-10000,10000,normtime 1] type:#integer
+			spinner anim_range_start "" pos:[115, 73] width:42 height:16 range:[-10000, 10000, normtime 0] type:#integer
+			spinner anim_range_end  "to " pos:[115+54, 73] width:42 height:16 range:[-10000, 10000, normtime 1] type:#integer
+		)
+
+		group "Folder"
+		(
+			button OpenExportLocation "Export Location" width:94 pos:[14, 116]
+			button OpenSourceLocation "Source Location" width:94 pos:[116, 116]
 		)
 
 		on ui_rolloutgroup_main rolledup state do
@@ -847,201 +1022,271 @@ rollout pipeboy "pipeboy"
 			if (allowStorePersistance) do ( ro_open_m = state )
 		)
 
-		on export pressed do
+		on Export pressed do
 		(
-			if (currentassetselected != 1) do
-			(
-				messagebox "Current asset type is not set to geometry!" title:"wrong asset type!"
-				return()
-			)
+			if (TryExportCriteria == false) do ( return() )
 
-			print(" { Export } ")
+			print(" << Export >> ")
 
 			loadvariables() -- double check saved variables
 			refreshrollouts() --same for rollouts
 
-			local exportCollection = $*
-
-			if (exportCollection.count == 0) do (return())
-
-			if ((getfilenamefile  maxfilename) == "") do
+			case AssetTypeSelection of
 			(
-				messagebox "save scene first!" title:"export error!"
-				return()
-			)
-
-			if (ro_a == undefined) do (refreshrollouts())
-
-			local combine = ro_a.meshgrouper.state
-			local doLods = ro_a.generatelods.state
-
-			PrepMesh collection:exportCollection groupMesh:combine lod:doLods lod_amount:ro_a.lodsamount
-		)
-
-		on exportselection pressed do
-		(
-			if (currentassetselected != 1) do
-			(
-				messagebox "Current asset type is not set to geometry!" title:"wrong asset type!"
-				return()
-			)
-
-			print(" { Export selection } ")
-
-			loadvariables() -- double check saved variables
-			refreshrollouts() --same for rollouts
-
-			local exportCollection = selection as array
-
-			if (exportCollection.count == 0) do (return())
-
-			if ((getfilenamefile  maxfilename) == "") do
-			(
-				messagebox "save scene first!" title:"export error!"
-				return()
-			)
-
-			if (ro_a == undefined) do (refreshrollouts())
-
-			local combine = ro_a.meshgrouper.state
-			local doLods = ro_a.generatelods.state
-
-			PrepMesh collection:exportCollection groupMesh:combine lod:doLods lod_amount:ro_a.lodsamount
-		)
-
-		on exportanimation pressed do
-		(
-			if (currentassetselected != 2) do
-			(
-				messagebox "Current asset type is not set to animation!" title:"wrong asset type!"
-				return()
-			)
-
-			print(" { Export animation } ")
-
-			clearselection()
-
-			loadvariables() -- double check saved variables
-			refreshrollouts() --same for rollouts
-
-			if ((getfilenamefile  maxfilename) == "") do
-			(
-				messagebox "save scene first!" title:"export error!"
-				return()
-			)
-
-			local cNodes = undefined --Node collection of character rig
-			local aNodes = undefined --Node collection of accessory rig
-
-			local cSel = ro_s.rigCharacter.selection
-			local aSel = ro_s.rigAccessory.selection
-
-			local selValid = ((cSel != 0) and (cSel != 1))
-
-			if (selValid and (cSel == aSel)) then
-			(
-				messagebox "Character and Accessory rigs are marked as the same!" title:"export error!"
-				return()
-			)
-			else
-			(
-				if selValid then
+				--Geometry
+				1:
 				(
-					cNodes = getPrefixObjects pre:ro_s.rigCharacter.selected
-				)
-				else
-				(
-					--local rootbone = getnodebyname (s_boneroot as string) ignorecase:false
-					local rootbone = ro_s.pickCharacter.object
+					local exportCollection = $*
 
-					if (rootbone == undefined) then
+					if (exportCollection.count == 0) do
 					(
-						enablesceneredraw()
-						messagebox "Can't find root bone, check project settings! (Case sensitive)" title:"NO ROOT!"
+						messagebox "Scene is empty!" title:"Export error!"
 						return()
+					)
+
+					if (ro_a == undefined) do (refreshrollouts())
+
+					local combine = ro_a.meshgrouper.state
+					local doLods = false --ro_a.generatelods.state--DISABLED
+
+					PrepMesh collection:exportCollection groupMesh:combine --lod:doLods --lod_amount:0 --ro_a.lodsamount
+
+					local separate = if (ro_a.separateMeshFiles.state == true) then ( separate = 3 ) else ( separate = 1 )
+
+					ExportProcess exportType:separate collection:exportgroup
+				)
+
+				--Rig
+				3:
+				(
+					--Perform rig specific export sequence for all nodes
+				)
+
+				default:
+				(
+					messagebox "Current asset type is not set to Geometry or Rig!" title:"Invalid asset type!"
+					return()
+				)
+			)
+		)
+
+		on ExportSelection pressed do
+		(
+			if (TryExportCriteria trySelection:true == false) do ( return() )
+
+			print(" << Export selection >> ")
+
+			loadvariables() -- double check saved variables
+			refreshrollouts() -- same for rollouts
+
+			case AssetTypeSelection of
+			(
+				--Geometry
+				1:
+				(
+					local exportCollection = selection as array
+
+					if (ro_a == undefined) do (refreshrollouts())
+
+					local combine = ro_a.meshgrouper.state
+					local doLods = false --ro_a.generatelods.state--DISABLED
+
+					PrepMesh collection:exportCollection groupMesh:combine --lod:doLods --lod_amount:0--ro_a.lodsamount
+
+					local separate = if (ro_a.separateMeshFiles.state == true) then ( separate = 3 ) else ( separate = 1 )
+
+					ExportProcess exportType:separate collection:exportgroup
+				)
+
+				--Rig
+				3:
+				(
+					--Perform rig specific export sequence for selected nodes
+				)
+
+				default:
+				(
+					messagebox "Current asset type is not set to Geometry or Rig!" title:"Invalid asset type!"
+					return()
+				)
+			)
+		)
+
+		on ExportAnimation pressed do
+		(
+			if (TryExportCriteria tryCharacter:true == false) do ( return() )
+
+			print(" << Export Animation >> ")
+
+			loadvariables() -- double check saved variables
+			refreshrollouts() --same for rollouts
+
+			case AssetTypeSelection of
+			(
+				--Animation
+				2:
+				(
+					local cNodes = undefined --Node collection of character rig
+					local aNodes = undefined --Node collection of accessory rig
+
+					if (selection.count == 0) then
+					(
+						if (ro_s.rigCharacter.selection != 1) then
+						(
+							cNodes = getPrefixObjects pre:ro_s.rigCharacter.selected allowMeshes:true --XRef bones are geometry?
+						)
+						else
+						(
+							--local rootbone = getnodebyname (s_boneroot as string) ignorecase:false
+							local rootbone = ro_s.pickCharacter.object
+
+							--Backup try to grab node based on name on pickbutton
+							if (rootbone == undefined OR isValidNode rootbone == false) do
+							(
+								rootbone = getNodeByName (ro_s.pickCharacter.text as string)
+
+								--If still null, exit the function
+								if (rootbone == undefined OR isValidNode rootbone == false) do
+								(
+									enablesceneredraw()
+									messagebox "Can't find root bone, check project settings! (Case sensitive)" title:"NO ROOT!"
+									return()
+								)
+							)
+
+							local rootNodes = getChildren obj:rootbone
+							cNodes = rootNodes
+						)
 					)
 					else
 					(
-						local rootNodes = getChildren obj:rootbone
-						cNodes = rootNodes
-					)
-				)
-			)
+						local ta = getCurrentSelection()
+						local ti = #()
 
-			-- debug print selection
-			--print("[ Character rig nodes ]")
-			--print(cNodes)
+						sortToHierarchy &ta &ti
 
-			--Prepare copy array for safe operation
-			local copies = #()
+						local tryGetRoot = ta[1]
 
-			try
-			(
-				DisableSceneRedraw() --speed up processing
-
-				--Make copies of bones to export for safer operation
-				copies = CopyNodes collection:cNodes
-
-				--Remove prefixes from copied nodes
-				stripPrefixes(copies)
-
-				--Print export node selection
-				printc("[ Nodes ]")
-				printc(copies)
-
-				if (ro_s.exportsequences.state == true) then
-				(
-					local selectedSequences = #()
-
-					for i in ro_s.list_sequences.selection do
-					(
-						if (sequencearray[i] != undefined) do
+						if (isValidNode tryGetRoot == true) then
 						(
-							append selectedSequences sequencearray[i]
+							local rootNodes = getChildren obj:tryGetRoot
+							cNodes = rootNodes
+						)
+						else
+						(
+							enablesceneredraw()
+							messagebox "Can't find root bone, check project settings! (Case sensitive)" title:"NO ROOT!"
+							return()
 						)
 					)
 
-					printc("[ Selected Sequences ]")
-					printc(selectedSequences)
+					-- debug print selection
+					--print("[ Character rig nodes ]")
+					--print(cNodes)
 
-					--Prepare to store export results to print after finishing operation
-					free exportResults
+					--Prepare copy array for safe operation
+					local copies = #()
 
-					for s in selectedSequences do
+					try
 					(
-						--Try export accessory
-						local tea = (s.exportAccessory and ro_s.exportaccessory.state)
+						DisableSceneRedraw() --speed up processing
 
-						ExportProcess collection:copies exportType:2 astart:s.range_start aend:s.range_end asequencename:s.sequenceName aexport:tea overrideredraw:true delayPrint:true
+						--Make copies of bones to export for safer operation
+						copies = CopyNodes collection:cNodes
+
+						--Remove prefixes from copied nodes
+						stripPrefixes(copies)
+
+						--Print export node selection
+						printc("[ Nodes ]")
+						printc(copies)
+
+						if (ro_s.exportsequences.state == true) then
+						(
+							local selectedSequences = #()
+
+							for i in ro_s.list_sequences.selection do
+							(
+								if (sequencearray[i] != undefined) do
+								(
+									append selectedSequences sequencearray[i]
+								)
+							)
+
+							printc("[ Selected Sequences ]")
+							printc(selectedSequences)
+
+							--Prepare to store export results to print after finishing operation
+							free exportResults
+
+							for s in selectedSequences do
+							(
+								--Try export accessory
+								local tea = (s.exportAccessory and ro_s.exportaccessory.state)
+
+								ExportProcess collection:copies exportType:2 astart:s.range_start aend:s.range_end asequencename:s.sequenceName aexport:tea overrideredraw:true delayPrint:true
+							)
+
+							EnableSceneRedraw()
+
+							--Print export results
+							for result in exportResults do ( print(result) )
+						)
+						else
+						(
+							ExportProcess collection:copies exportType:2 aexport:ro_s.exportaccessory.state
+						)
+
+						--Clean up copied nodes from export process after operation is done
+						for o in copies do ( if (isValidNode o) do ( delete o ) )
 					)
+					catch
+					(
+						--Try to clean up copied nodes from export process
+						for o in copies do ( if (isValidNode o) do ( delete o ) )
 
-					EnableSceneRedraw()
+						enablesceneredraw() --re-enable scene redrawing if error occurs
 
-					--Print export results
-					for result in exportResults do ( print(result) )
+						--Wait with throwing error message until cleanup is performed
+						throw()
+					)
 				)
-				else
+
+				default:
 				(
-					ExportProcess collection:copies exportType:2 aexport:ro_s.exportaccessory.state
+					messagebox "Current asset type is not set to animation!" title:"wrong asset type!"
+					return()
 				)
-
-				--Clean up copied nodes from export process after operation is done
-				for o in copies do ( delete o )
 			)
-			catch
-			(
-				--Try to clean up copied nodes from export process
-				for o in copies do ( delete o )
+		)
 
-				enablesceneredraw() --re-enable scene redrawing if error occurs
+		on OpenSourceLocation pressed do
+		(
+			if (TryExportCriteria() == false) do (return())
 
-				--Wait with throwing error message until cleanup is performed
-				throw()
-			)
+			--Get current file's path
+			local pth = getFilenamePath(maxFilePath)
+
+			--Compile string before running DOSCommand
+			local cmnd = ("explorer " + pth) as string
+
+			DOSCommand cmnd
+		)
+
+		on OpenExportLocation pressed do
+		(
+			if (TryExportCriteria() == false) do (return())
+
+			local pth = GetExportLocation()
+
+			--Compile string before running DOSCommand
+			local cmnd = ("explorer " + pth) as string
+
+			DOSCommand cmnd
 		)
     )
 
-	rollout ui_rolloutgroup_sequence "animation"
+	rollout ui_rolloutgroup_sequence "ANIMATION"
     (
     	--Sequence settings
 		group ""
@@ -1062,8 +1307,11 @@ rollout pipeboy "pipeboy"
 
 		on editsequences pressed do
 		(
-			--open rollout from external file
-			filein pipeboyanimsetup
+			--Open floater from external file
+			try(destroydialog PipeBoy_AnimSetup)catch()
+			createdialog PipeBoy_AnimSetup style:#(#style_toolwindow, #style_sysmenu)
+
+			cbf_updateui()
 		)
 
 		on list_sequences selected i do
@@ -1121,24 +1369,28 @@ rollout pipeboy "pipeboy"
 		(
 			exportsequences.state = p_useSequenceList
 			exportaccessory.state = p_exportAccessory
+
+			cbf_updateui()
 		)
     )
 
-	rollout ui_rolloutgroup_asset "asset"
+	rollout ui_rolloutgroup_asset "ASSET"
     (
-		group "asset settings"
+		group "Asset Settings"
 		(
-			dropdownlist istype "asset type" items:#("geometry", "animation") width:85
+			dropdownlist istype "Asset Type" items:#("Geometry", "Animation") width:85
 
-			checkbox meshgrouper "mesh grouper" checked:false
-			checkbox generatelods "generate lods" checked:false
-			spinner lodsamount "lods" range:[1,6,2] type:#integer width:50 pos:[125, 92]
-			edittext fileextension "file name extension"
+			checkbox meshgrouper "Mesh grouper" checked:false
+			--checkbox generatelods "Generate lods" checked:false
+			--spinner lodsamount "LODs" range:[1,6,2] type:#integer width:50 pos:[125, 92]
+
+			checkbox separateMeshFiles "Separate mesh files" checked:false tooltip:"Make each separated mesh node in scene get exported with its own file (Filename based on mesh name!)"
+			edittext fileextension "File name extension"
 		)
 
 		on istype selected newtype do
 		(
-			currentassetselected = newtype
+			AssetTypeSelection = newtype
 		)
 
 		on meshgrouper changed newState do
@@ -1146,9 +1398,16 @@ rollout pipeboy "pipeboy"
 			if (allowStorePersistance) do ( p_meshGrouper = newState )
 		)
 
+		/*DISABLED
 		on generatelods changed newState do
 		(
 			if (allowStorePersistance) do ( p_generateLods = newState )
+		)
+		*/
+
+		on separateMeshFiles changed newState do
+		(
+			if (allowStorePersistance) do ( p_separateMeshFiles = newState )
 		)
 
 		on ui_rolloutgroup_asset rolledup state do
@@ -1159,18 +1418,19 @@ rollout pipeboy "pipeboy"
 
 		on ui_rolloutgroup_asset open do
 		(
-			istype.selection = currentassetselected
+			istype.selection = AssetTypeSelection
 
 			meshgrouper.state = p_meshGrouper
-			generatelods.state = p_generateLods
+			--generatelods.state = p_generateLods--DISABLED
+			separateMeshFiles.state = p_separateMeshFiles
 		)
     )
 
-	rollout ui_rolloutgroup_project "project"
+	rollout ui_rolloutgroup_project "PROJECT"
     (
-		group "project settings"
+		group "Project Settings"
 		(
-			dropdownlist currentproject "project" width:125
+			dropdownlist currentproject "Project" width:125
 			button editprojectsettings "Edit" width:65 pos:[144,44]
 		)
 
@@ -1213,10 +1473,6 @@ rollout pipeboy "pipeboy"
 
 		on refresh pressed do
 		(
-			loadvariables()
-
-			loadsequences()
-
 			cbf_updateui()
 
 			currentproject.items = projectarray
@@ -1235,10 +1491,11 @@ rollout pipeboy "pipeboy"
 
 		--fix initialized persistent variables
 		if (currentprojectselected == undefined) do (currentprojectselected = 1)
-		if (currentassetselected == undefined) do (currentassetselected = 1)
+		if (AssetTypeSelection == undefined) do (AssetTypeSelection = 1)
 		if (printtoconsole == undefined) do (printtoconsole = false)
 		if (p_meshGrouper == undefined) do (p_meshGrouper = false)
-		if (p_generateLods == undefined) do (p_generateLods = false)
+		--if (p_generateLods == undefined) do (p_generateLods = false)--DISABLED
+		if (p_separateMeshFiles == undefined) do (p_separateMeshFiles = false)
 		if (p_useSequenceList == undefined) do (p_useSequenceList = false)
 		if (p_exportAccessory == undefined) do (p_exportAccessory = false)
 		if (ro_open_m == undefined) do (ro_open_m = true)
@@ -1253,10 +1510,7 @@ rollout pipeboy "pipeboy"
 		addsubrollout ui_base ui_rolloutgroup_project
 
 		--Cache global references to rollouts
-		global ro_m = pipeboy.ui_rolloutgroup_main
-		global ro_s = pipeboy.ui_rolloutgroup_sequence
-		global ro_a = pipeboy.ui_rolloutgroup_asset
-		global ro_p = pipeboy.ui_rolloutgroup_project
+		refreshrollouts()
 
 		--Open or close rollouts from memory?
 		if ((ro_m != undefined) and (ro_s != undefined) and (ro_a != undefined) and (ro_p != undefined)) do
@@ -1292,7 +1546,7 @@ rollout pipeboy "pipeboy"
 		ro_p.currentproject.selection = currentprojectselected
 
 		--Set asset type selection from scene memory
-		ro_a.istype.selection = currentassetselected
+		ro_a.istype.selection = AssetTypeSelection
 
 		allowStorePersistance = true
 

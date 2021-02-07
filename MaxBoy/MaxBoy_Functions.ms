@@ -83,7 +83,8 @@ fn CopyNodes collection:(selection as array) type:#copy uniqueNames:false =
 	else
 	(
 		--Copies node
-		maxOps.cloneNodes (collection as array) cloneType:type newNodes:&tCopies #nodialog
+		print("CopyNodes :: Undefined collection")
+		return(undefined)
 	)
 
 	local aCopies = tCopies as array
@@ -101,21 +102,6 @@ fn CopyNodes collection:(selection as array) type:#copy uniqueNames:false =
 	return(aCopies)
 )
 
---Generic node collecting form with prefix function
-fn collectObjects =
-(
-	if (selection.count != 0) then
-	(
-		local tempArray = selection as array
-		return tempArray
-	)
-	else
-	(
-		messageBox "Empty selection!" title:"Selection error"
-		return()
-	)
-)
-
 --Selects all children under supplied node
 fn getChildren obj: =
 (
@@ -128,7 +114,7 @@ fn getChildren obj: =
 		if (obj == unsupplied) then
 		(
 			--Sort selection to hierarchy and get top parent
-			local sortArr = selection
+			local sortArr = getCurrentSelection()
 			local indexArr = #()
 
 			sortToHierarchy &sortArr &indexArr
@@ -139,7 +125,7 @@ fn getChildren obj: =
 			)
 			else
 			(
-				printc("GetChildren :: Couln't proceed, hierarchy top is undefined")
+				printc("GetChildren :: Couldn't proceed, hierarchy top is undefined")
 				return()
 			)
 		)
@@ -151,7 +137,7 @@ fn getChildren obj: =
 			)
 			else
 			(
-				printc("GetChildren :: Couln't proceed, obj is undefined")
+				printc("GetChildren :: Couldn't proceed, obj is undefined")
 				return()
 			)
 		)
@@ -304,8 +290,6 @@ fn sortToHierarchy &tArray &tIndex =
 
 	tArray = oArray
 	tIndex = iArray
-
-	--return tArray
 )
 
 --Returns an array of index depths for a hierarchy at the same positions
@@ -399,7 +383,7 @@ fn RotatePivotOnly obj _rotation =
 )
 
 --Sets the scale to [1,1,1] and keeps the hierarchy intact
-fn fn_resetScales tArray =
+fn ResetScales tArray =
 (
 	--clearListener()
 	print("Resetting scales!")
@@ -615,7 +599,11 @@ fn getPrefixObjects pre:"" sel:$* allowMeshes:false =
 	(
 		if (matchPattern o.name pattern:(pre + "*")) do
 		(
-			if ((allowMeshes == false) and (superclassOf o != GeometryClass)) do
+			if (superclassOf o == GeometryClass and allowMeshes == false) then
+			(
+				--Ignore meshes if not allowed
+			)
+			else
 			(
 				append nodeSelection o
 			)
@@ -703,7 +691,7 @@ fn stripPrefixes &collection =
 )
 
 --Keybaker function
-fn BakeKeys collection:(selection as array) r_start: r_end: method:1 keepController:false reverse:false ref:undefined =
+fn BakeKeys collection:(selection as array) rs: re: method:1 keepController:false rev:false ref:undefined =
 (
 	--Modes: 1:Regular, 2:Reference, 3:Dummy, 4:Start)
 
@@ -713,8 +701,8 @@ fn BakeKeys collection:(selection as array) r_start: r_end: method:1 keepControl
 		return()
 	)
 
-	if (r_start == unsupplied) do (r_start = (( normTime 0 as integer ) / ticksperframe))
-	if (r_end == unsupplied) do (r_end = (( normTime 1 as integer ) / ticksperframe))
+	if (rs == unsupplied) do (rs = (( normTime 0 as integer ) / ticksperframe))
+	if (re == unsupplied) do (re = (( normTime 1 as integer ) / ticksperframe))
 
 	with redraw off
 	(
@@ -730,7 +718,7 @@ fn BakeKeys collection:(selection as array) r_start: r_end: method:1 keepControl
 			--Initiate copying pass index var
 			local copyPass = 0
 
-			for t = r_start to r_end do
+			for t = rs to re do
 			(
 				copyPass += 1
 
@@ -748,7 +736,7 @@ fn BakeKeys collection:(selection as array) r_start: r_end: method:1 keepControl
 							if (method == 4) do
 							(
 								--Collect first frame transform data and store into array
-								at time r_start
+								at time rs
 								(
 									local firstFrameTrans = in coordsys world obj.transform
 								)
@@ -818,7 +806,7 @@ fn BakeKeys collection:(selection as array) r_start: r_end: method:1 keepControl
 					if (testResult == true) do
 					(
 						local testController = false
-						local controllersToTest = #(PRS, Link_Constraint, transform_script)
+						local controllersToTest = #(PRS, Link_Constraint, transform_script, XRef_Controller)
 
 						for c in controllersToTest do
 						(
@@ -838,15 +826,15 @@ fn BakeKeys collection:(selection as array) r_start: r_end: method:1 keepControl
 			--Initiate pasting pass index var
 			local pastePass = 0
 
-			local virtualStartFrame = r_start
-			local virtualEndFrame = r_end
+			local virtualStartFrame = rs
+			local virtualEndFrame = re
 			local stepBasis = 1
 
 			--Flip start/ end frames depending on if we're reversing or not
-			if (reverse == true) do
+			if (rev == true) do
 			(
-				virtualStartFrame = r_end
-				virtualEndFrame = r_start
+				virtualStartFrame = re
+				virtualEndFrame = rs
 				stepBasis = -1 --Go in reverse in for loop
 			)
 
