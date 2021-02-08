@@ -92,49 +92,63 @@ fn loadvariables =
 (
 	--setup which project to load from file
 	--print("pbs: " + pbs)
-	tempprojectarray = getinisetting pbs "maindata" "g_projects"
-	global projectarray = execute tempprojectarray
 
-	if (currentprojectselected == undefined or currentprojectselected == 0) then
-		t_selectproject = 1
+	try
+	(
+		--Try because .INI file might be missing and throw an error
+		tempprojectarray = getinisetting pbs "maindata" "g_projects"
+		global projectarray = execute tempprojectarray
+
+		if (currentprojectselected == undefined or currentprojectselected == 0) then
+			t_selectproject = 1
+			else
+			t_selectproject = currentprojectselected
+
+		global currentprojectselected = t_selectproject
+
+		if (projectarray[t_selectproject] != undefined) then
+		(
+			local pro = (projectarray[t_selectproject] as string)
+
+			global p_projectroot 		= (getinisetting pbs pro "p_projectroot")
+			global p_projectsource 		= (getinisetting pbs pro "p_projectsource")
+			global p_projectasset 		= (getinisetting pbs pro "p_projectasset")
+
+			global s_engine 			= (getinisetting pbs pro "s_engine") as integer
+			global s_importfromraw 		= (getinisetting pbs pro "s_importfromraw") as booleanclass
+			global s_forwardaxis 		= (getinisetting pbs pro "s_forwardaxis") as integer
+			global s_meshgroupprefix 	= (getinisetting pbs pro "s_meshgroupprefix")
+
+			global s_boneprefix 		= (getinisetting pbs pro "s_boneprefix")
+			global s_boneroot 			= (getinisetting pbs pro "s_boneroot")
+			global s_alignprefix 		= (getinisetting pbs pro "s_alignprefix")
+
+			global s_ac_folder 			= (getinisetting pbs pro "s_ac_folder")
+			global s_ac_prefix 			= (getinisetting pbs pro "s_ac_prefix")
+			global s_ac_findintelligent = (getinisetting pbs pro "s_ac_findintelligent") as booleanclass
+			global s_ac_lockroot		= (getinisetting pbs pro "s_ac_lockroot") as booleanclass
+			global s_ac_lockrootdepth 	= (getinisetting pbs pro "s_ac_lockrootdepth") as integer
+
+			global s_ac_fileprefix 		= (getinisetting pbs pro "s_ac_fileprefix")
+			global s_ac_filesuffix 		= (getinisetting pbs pro "s_ac_filesuffix")
+			global s_ac_removefilepre 	= (getinisetting pbs pro "s_ac_removefilepre") as integer
+			global s_ac_removefilesuf 	= (getinisetting pbs pro "s_ac_removefilesuf") as integer
+
+			printc("loaded project: " + pro)
+		)
 		else
-		t_selectproject = currentprojectselected
-
-	global currentprojectselected = t_selectproject
-
-	if (projectarray[t_selectproject] != undefined) then
-	(
-		local pro = (projectarray[t_selectproject] as string)
-
-		global p_projectroot 		= (getinisetting pbs pro "p_projectroot")
-		global p_projectsource 		= (getinisetting pbs pro "p_projectsource")
-		global p_projectasset 		= (getinisetting pbs pro "p_projectasset")
-
-		global s_engine 			= (getinisetting pbs pro "s_engine") as integer
-		global s_importfromraw 		= (getinisetting pbs pro "s_importfromraw") as booleanclass
-		global s_forwardaxis 		= (getinisetting pbs pro "s_forwardaxis") as integer
-		global s_meshgroupprefix 	= (getinisetting pbs pro "s_meshgroupprefix")
-
-		global s_boneprefix 		= (getinisetting pbs pro "s_boneprefix")
-		global s_boneroot 			= (getinisetting pbs pro "s_boneroot")
-		global s_alignprefix 		= (getinisetting pbs pro "s_alignprefix")
-
-		global s_ac_folder 			= (getinisetting pbs pro "s_ac_folder")
-		global s_ac_prefix 			= (getinisetting pbs pro "s_ac_prefix")
-		global s_ac_findintelligent = (getinisetting pbs pro "s_ac_findintelligent") as booleanclass
-		global s_ac_lockroot		= (getinisetting pbs pro "s_ac_lockroot") as booleanclass
-		global s_ac_lockrootdepth 	= (getinisetting pbs pro "s_ac_lockrootdepth") as integer
-
-		global s_ac_fileprefix 		= (getinisetting pbs pro "s_ac_fileprefix")
-		global s_ac_filesuffix 		= (getinisetting pbs pro "s_ac_filesuffix")
-		global s_ac_removefilepre 	= (getinisetting pbs pro "s_ac_removefilepre") as integer
-		global s_ac_removefilesuf 	= (getinisetting pbs pro "s_ac_removefilesuf") as integer
-
-		printc("loaded project: " + pro)
+		(
+			messagebox "project seems to be missing!" title:"missing project!"
+		)
 	)
-	else
+	catch
 	(
-		messagebox "project seems to be missing!" title:"missing project!"
+		print("Warning: Failed to load .INI file!")
+
+		--Try resetting it
+		pbs = (pathconfig.getdir #userscripts) + ( "\\maxboy\\pipeboy_settings.ini")
+
+		return()
 	)
 )
 
