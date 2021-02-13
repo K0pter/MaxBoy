@@ -36,8 +36,11 @@ global gname = (getfilenamefile  maxfilename)
 global pipeboy --rollout class handle
 global pipeboysettings --pipeboy settings file
 global pipeboyanimsetup --pipeboy animation setup file
+global pipeboySub --Subrollout inside main pipeboy rollout
 global pbs --pipeboy settings .ini file handle
 global allowStorePersistance --Delay setting persistent vars
+global PipeBoy_FloaterWindowHeight --Height of floater
+
 
 --Temp arrays
 global exportgroup = #()
@@ -134,11 +137,11 @@ fn loadvariables =
 			global s_ac_removefilepre 	= (getinisetting pbs pro "s_ac_removefilepre") as integer
 			global s_ac_removefilesuf 	= (getinisetting pbs pro "s_ac_removefilesuf") as integer
 
-			printc("loaded project: " + pro)
+			printc("Loaded project: " + pro)
 		)
 		else
 		(
-			messagebox "project seems to be missing!" title:"missing project!"
+			messagebox "Project seems to be missing!" title:"Missing project!"
 		)
 	)
 	catch
@@ -175,7 +178,7 @@ fn loadsequences =
 
 	if (doesfileexist filepath == false) do
 	(
-		printc("no file to load from @ " + (filepath as string))
+		printc("No file to load from @ " + (filepath as string))
 		return()
 	)
 
@@ -482,22 +485,22 @@ rollout pipeboy "PipeBoy"
 	subrollout ui_base width:235 height:baseHeight pos:[0,0]
 
 	--window resize function for rollouts [ override ]
-	fn resizewindow ttarget trollout tstate =
+	fn ResizeFloaterWindow ro =
 	(
-		--local baseOffset = -20
+		try
+		(
+			local fold = if (ro.open) then 1 else -1
 
-	    if (tstate == true) then
-	    (
-			ui_base.height += trollout.height
-			ttarget.height += trollout.height
-	    )
-	    else
-	    (
-			ui_base.height -= trollout.height
-			ttarget.height -= trollout.height
-	    )
+			ui_base.height += ro.height * fold
+			pipeboy.height += ro.height * fold
 
-	    cbf_updateui()
+		    cbf_updateui()
+	    )
+	    catch
+	    (
+	    	print("ResizeFloaterWindow :: Rollout folding error! Rollout >> " + (ro as string))
+	    	throw()
+	    )
 	)
 
 	fn refreshrollouts =
@@ -506,6 +509,10 @@ rollout pipeboy "PipeBoy"
 		ro_s = pipeboy.ui_rolloutgroup_sequence
 		ro_a = pipeboy.ui_rolloutgroup_asset
 		ro_p = pipeboy.ui_rolloutgroup_project
+
+		pipeboySub = ui_base
+
+		PipeBoy_FloaterWindowHeight = (ro_m.height + ro_s.height + ro_a.height + ro_p.height) + 105
 	)
 
 	fn rotatepivotonlyengine obj =
@@ -1008,8 +1015,10 @@ rollout pipeboy "PipeBoy"
 		return()
 	)
 
+
 	rollout ui_rolloutgroup_main "EXPORT"
     (
+
 		group "General"
 		(
 			button Export "Export" width:94 pos:[14, 22]
@@ -1030,10 +1039,10 @@ rollout pipeboy "PipeBoy"
 			button OpenSourceLocation "Source Location" width:94 pos:[116, 116]
 		)
 
-		on ui_rolloutgroup_main rolledup state do
+		on ui_rolloutgroup_main rolledup newState do
 		(
-			resizewindow pipeboy ui_rolloutgroup_main state
-			if (allowStorePersistance) do ( ro_open_m = state )
+			ResizeFloaterWindow ui_rolloutgroup_main
+			if (allowStorePersistance) do ( ro_open_m = newState )
 		)
 
 		on Export pressed do
@@ -1302,6 +1311,7 @@ rollout pipeboy "PipeBoy"
 
 	rollout ui_rolloutgroup_sequence "ANIMATION"
     (
+
     	--Sequence settings
 		group ""
 		(
@@ -1373,10 +1383,10 @@ rollout pipeboy "PipeBoy"
 			if (allowStorePersistance) do ( p_exportAccessory = newState )
 		)
 
-		on ui_rolloutgroup_sequence rolledup state do
+		on ui_rolloutgroup_sequence rolledup newState do
 		(
-			resizewindow pipeboy ui_rolloutgroup_sequence state
-			if (allowStorePersistance) do ( ro_open_s = state )
+			ResizeFloaterWindow ui_rolloutgroup_sequence
+			if (allowStorePersistance) do ( ro_open_s = newState )
 		)
 
 		on ui_rolloutgroup_sequence open do
@@ -1412,22 +1422,21 @@ rollout pipeboy "PipeBoy"
 			if (allowStorePersistance) do ( p_meshGrouper = newState )
 		)
 
-		/*DISABLED
-		on generatelods changed newState do
-		(
-			if (allowStorePersistance) do ( p_generateLods = newState )
-		)
-		*/
+		--DISABLED
+		--on generatelods changed newState do
+		--(
+		--	if (allowStorePersistance) do ( p_generateLods = newState )
+		--)
 
 		on separateMeshFiles changed newState do
 		(
 			if (allowStorePersistance) do ( p_separateMeshFiles = newState )
 		)
 
-		on ui_rolloutgroup_asset rolledup state do
+		on ui_rolloutgroup_asset rolledup newState do
 		(
-			resizewindow pipeboy ui_rolloutgroup_asset state
-			if (allowStorePersistance) do ( ro_open_a = state )
+			ResizeFloaterWindow ui_rolloutgroup_asset
+			if (allowStorePersistance) do ( ro_open_a = newState )
 		)
 
 		on ui_rolloutgroup_asset open do
@@ -1459,11 +1468,10 @@ rollout pipeboy "PipeBoy"
 
 		)
 
-		on ui_rolloutgroup_project rolledup state do
+		on ui_rolloutgroup_project rolledup newState do
 		(
-			resizewindow pipeboy ui_rolloutgroup_project state
-
-			if (allowStorePersistance) do ( ro_open_p = state )
+			ResizeFloaterWindow ui_rolloutgroup_project
+			if (allowStorePersistance) do ( ro_open_p = newState )
 		)
 
 		on editprojectsettings pressed do
@@ -1517,6 +1525,9 @@ rollout pipeboy "PipeBoy"
 		if (ro_open_a == undefined) do (ro_open_a = false)
 		if (ro_open_p == undefined) do (ro_open_p = false)
 
+		--Force print
+		--printtoconsole = true
+
 		--Add sub rollouts
 		addsubrollout ui_base ui_rolloutgroup_main
 		addsubrollout ui_base ui_rolloutgroup_sequence
@@ -1525,6 +1536,10 @@ rollout pipeboy "PipeBoy"
 
 		--Cache global references to rollouts
 		refreshrollouts()
+
+		--Set main rollout heights
+		pipeboy.height = PipeBoy_FloaterWindowHeight
+		pipeboySub.height = pipeboy.height --PipeBoy_FloaterWindowHeight
 
 		--Open or close rollouts from memory?
 		if ((ro_m != undefined) and (ro_s != undefined) and (ro_a != undefined) and (ro_p != undefined)) do
@@ -1544,6 +1559,7 @@ rollout pipeboy "PipeBoy"
 				ro_p.open = false
 			)
 		)
+
 		--Initialize script references
 		pbs = (pathconfig.getdir #userscripts) + ( "\\maxboy\\pipeboy_settings.ini")
 		pipeboysettings = (pathconfig.getdir #userscripts) + ( "\\maxboy\\pipeboy_projectsettings.ms")
@@ -1574,6 +1590,8 @@ rollout pipeboy "PipeBoy"
 		--Just to be safe, enable scene redraw
 		enablesceneredraw()
 		renderscenedialog.update()
+
+		print("Hey, it's PipeBoy!")
 	)
 
 	--Destruct callbacks when closed
@@ -1582,7 +1600,8 @@ rollout pipeboy "PipeBoy"
 		callbacks.removescripts #filepostopen  id:#cb_updateui
 	)
 )
-
-try(destroydialog pipeboy)catch()
-createdialog pipeboy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,150] height:baseHeight width:235
 )
+
+--Launch floater AFTER we've figured out rollout heights
+try(destroydialog pipeboy)catch()
+createdialog pipeboy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,150] height:500 width:235

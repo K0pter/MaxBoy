@@ -7,6 +7,8 @@ macros and tools to speed up general tasks.
 (
 include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
 
+global PipeBoy_FloaterWindowHeight --Height of floater
+
 rollout ToolBoy "ToolBoy"
 (
 	--Global settings
@@ -21,17 +23,19 @@ rollout ToolBoy "ToolBoy"
 	subRollout UI_Base width:190 height:70 pos:[-1,-1]
 
 	--Window resize function for rollouts [ Override ]
-	fn resizeWindow tTarget tRollout tState =
+	fn ResizeFloaterWindow ro =
 	(
-	    if (tState == true) then
-	    (
-			UI_Base.height += tRollout.height
-			tTarget.height += tRollout.height
+		try
+		(
+			local fold = if (ro.open) then 1 else -1
+
+			UI_Base.height += ro.height * fold
+			ToolBoy.height += ro.height * fold
 	    )
-	    else
+	    catch
 	    (
-			UI_Base.height -= tRollout.height
-			tTarget.height -= tRollout.height
+	    	print("ResizeFloaterWindow :: Rollout folding error! Rollout >> " + (ro as string))
+	    	throw()
 	    )
 	)
 
@@ -54,7 +58,7 @@ rollout ToolBoy "ToolBoy"
 		)
 
 		--Handle window scaling when rolled up
-		on UI_Settings rolledUp State do (resizeWindow ToolBoy UI_Settings State)
+		on UI_Settings rolledUp State do (ResizeFloaterWindow UI_Settings)
 
 		on GiveDummies pressed do
 		(
@@ -308,7 +312,7 @@ rollout ToolBoy "ToolBoy"
 		)
 
 		--Handle window scaling when rolled up
-		on UI_Rigging rolledUp State do (resizeWindow ToolBoy UI_Rigging State)
+		on UI_Rigging rolledUp State do (ResizeFloaterWindow UI_Rigging)
 
 		on ConstraintTarget picked newTarget do
 		(
@@ -692,7 +696,7 @@ rollout ToolBoy "ToolBoy"
 			button nodeCheckup "Checkup!" width:150 align:#left toolTip:"Return bad transforms and other data"
 		)
 
-		on UI_Functions rolledUp State do (resizeWindow ToolBoy UI_Functions State)
+		on UI_Functions rolledUp State do (ResizeFloaterWindow UI_Functions)
 
 		on InstanceRef picked newRef do
 		(
@@ -887,13 +891,18 @@ rollout ToolBoy "ToolBoy"
 		addSubRollout UI_Base rol_r
 		addSubRollout UI_Base rol_f
 
-		rol_s.open = false
+		ToolBoy_FloaterWindowHeight = (rol_s.height + rol_r.height + rol_f.height) + 77
+
+		ToolBoy.height = ToolBoy_FloaterWindowHeight
+		UI_Base.height = ToolBoy.height
+
+		rol_s.open = true
 		rol_r.open = false
 		rol_f.open = false
 	)
-
 )
 
 try(destroyDialog ToolBoy)catch()
-createDialog ToolBoy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,200] width:190 height:70
+createDialog ToolBoy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,200] width:190 height:500
 )
+
