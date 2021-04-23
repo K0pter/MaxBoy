@@ -249,24 +249,29 @@ fn cbf_updateui =
 		ro_s.UI_Rig_Character.items = prefixes
 		ro_s.UI_Rig_Accessory.items = prefixes
 
-		--Try and find best prefix for character rig
-		for p in prefixes do
+		--Only attempt finding the preferred prefix if it's set to null to begin with
+		if (ro_s.UI_Rig_Character.selection == 1) do
 		(
-			local pfArr = filterString LS.s_PreferredPrefixes ", "
-			local matchResult = MatchPatternMultiple str:p patterns:pfArr matchAll:false ind:&foundIndex
-
-			if (foundIndex != undefined) then
+			--Try and find best prefix for character rig
+			for p in prefixes do
 			(
-				matchResult = RemoveLastChar matchResult
+				local pfArr = filterString LS.s_PreferredPrefixes ", "
+				local matchResult = MatchPatternMultiple str:p patterns:pfArr matchAll:false ind:&foundIndex
 
-				local inList = findItem prefixes p --Get index of preferred prefix
-				ro_s.UI_Rig_Character.selection = inList --Apply selection to list of prefixes
+				if (foundIndex != undefined) then
+				(
+					matchResult = RemoveLastChar matchResult
 
-				break
-			)
-			else
-			(
-				ro_s.UI_Rig_Character.selection = 1
+					local inList = findItem prefixes p --Get index of preferred prefix
+					ro_s.UI_Rig_Character.selection = inList --Apply selection to list of prefixes
+
+					break
+				)
+				else
+				(
+					--DON'T reset prefix selection if preferred wasn't found!!!
+					--ro_s.UI_Rig_Character.selection = 1
+				)
 			)
 		)
 
