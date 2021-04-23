@@ -20,7 +20,7 @@
 
 4. Now a tiny, empty floater should've popped up. While keeping the "Group" as "Main UI", change the "Category" to MaxBoy.
 
-5. Within the "Action" list, there should be two items listed. Drag out each of them into the floater you just created previously.
+5. Within the "Action" list, there should be three items listed. Drag out each of them into the floater you just created previously.
 
 6. Doc the floater somewhere, or keep it as is for easy acess! (you should probably save the UI after this to keep the change)
 
@@ -31,16 +31,19 @@
 I'll try and work around it for the future, and if it turns out that you're gonna HAVE to overwrite the file, I'll make sure to notify. 
 
 
-If anything throws weird errors after these steps, try running the scripts again and see if the problem persists. 
+If anything throws any errors after these steps, try running the installer script again to see if the problem persists. 
 
-Please inform me regarding any bugs you come across, since I want to make sure it works as smoothly as possible!
-
-And yes, I'll try and make a google doc manual for this as well sometime, keep an eye and and ear out for that!
-
-It's gonna be needed.
+Please inform me regarding any bugs you come across!
 
 
 Thanks for trying it out, and have fun! :)
+
+
+[Update]
+
+1. Put all included files from the package into the same location in the scripts folder
+
+2. Either run the update function from your UI floter, or run the install script from within 3Ds Max to install the files
 
 
 [Uninstall]

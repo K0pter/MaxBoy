@@ -5,55 +5,18 @@ for the main PipeBoy tool.
 
 (
 --include "MaxBoy_Functions.ms"
-include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
+--include "$userScripts\MaxBoy\MaxBoy_Functions.ms"
 
---Globals
-persistent global path_settings, path_project, selectedProject
 --Rollouts
-global PipeBoy_ProjectSettings
-global PipeBoy
-global rlt_addProject
-global projectsArray
-global PBS
+global rlt_projectSettings_addProject
 global UpdateUI
-
---Local settings struct
-struct LocalSettings
-(
-	p_projectRoot, 		--String
-	p_projectSource, 	--String
-	p_projectAsset, 	--String
-
-	s_Engine, 			--Integer
-	s_ImportFromRaw, 	--booleanClass
-	s_ForwardAxis, 		--Integer
-	s_MeshGroupPrefix, 	--String
-
-	s_BonePrefix, 		--String
-	s_BoneRoot, 		--String
-	s_AlignPrefix, 		--String
-
-	s_ac_Folder,		--String
-	s_ac_Prefix, 		--String
-	s_ac_FindIntelligent,--booleanClass
-	s_ac_LockRoot, 		--booleanClass
-	s_ac_LockRootDepth, --booleanClass
-
-	s_ac_FilePrefix,	--String
-	s_ac_FileSuffix,	--String
-	s_ac_RemoveFilePre,	--Integer
-	s_ac_RemoveFileSuf  --Integer
-)
-
---Initialize local settings "container" to easily store and update for later
-global LS = LocalSettings()
 
 --Update projects array
 fn UpdateProjects =
 (
 	local confirmedProjects = #()
 
-	for pia in projectsArray do
+	for pia in TMP_ProjectArray do
 	(
 		if (hasINISetting PBS pia == true) then
 		(
@@ -62,7 +25,7 @@ fn UpdateProjects =
 		)
 		else
 		(
-			selectedProject = 1
+			GP_CurrentProjectSelected = 1
 			--print("Expected project: '" + pia + "' is missing. Updating project array...")
 		)
 	)
@@ -70,21 +33,21 @@ fn UpdateProjects =
 	if (confirmedProjects.count == 0) do (messageBox "No projects! Add one!" title:"Error: No projects")
 
 	--Update projects array to [Actual] projects in file
-	projectsArray = confirmedProjects
+	TMP_ProjectArray = confirmedProjects
 )
 
 --Save to ini file
-fn SaveSettings query: =
+fn SaveProjectSettings query: =
 (
 	fn doSave =
 	(
-		local cp = selectedProject --Current project index
-		local pro = (projectsArray[cp] as string)
+		local cp = GP_CurrentProjectSelected --Current project index
+		local pro = (TMP_ProjectArray[cp] as string)
 
 		print("Saving settings to file: " + PBS + " as project: " + pro)
 
 		--Save global settings
-		setINISetting PBS "MainData" "g_Projects" (projectsArray as string)
+		setINISetting PBS "MainData" "g_Projects" (TMP_ProjectArray as string)
 
 		--Save project specific
 		--setINISetting <filename_string> <section_string> <key_string> <key_value_string>
@@ -95,6 +58,7 @@ fn SaveSettings query: =
 		setINISetting PBS pro "s_Engine" 				(LS.s_Engine as string)
 		setINISetting PBS pro "s_ImportFromRaw" 		(LS.s_ImportFromRaw as string)
 		setINISetting PBS pro "s_ForwardAxis" 			(LS.s_ForwardAxis as string)
+		setINISetting PBS pro "s_PreferredPrefixes" 	(LS.s_PreferredPrefixes)
 		setINISetting PBS pro "s_MeshGroupPrefix" 		(LS.s_MeshGroupPrefix)
 
 		setINISetting PBS pro "s_BonePrefix" 			(LS.s_BonePrefix)
@@ -111,6 +75,8 @@ fn SaveSettings query: =
 		setINISetting PBS pro "s_ac_FileSuffix" 		(LS.s_ac_FileSuffix)
 		setINISetting PBS pro "s_ac_RemoveFilePre" 		(LS.s_ac_RemoveFilePre as string)
 		setINISetting PBS pro "s_ac_RemoveFileSuf" 		(LS.s_ac_RemoveFileSuf as string)
+
+
 	)
 
 	if (query == unsupplied) do (query = true)
@@ -126,23 +92,23 @@ fn SaveSettings query: =
 )
 
 --Load from ini file
-fn LoadSettings =
+fn LoadProjectSettings =
 (
-	local cp = selectedProject --Current project index
 	local tArray = (getINISetting PBS "MainData" "g_Projects")
 
-	if (cp == 0 or cp == undefined) do (cp = 1)
+	local selProj = GP_CurrentProjectSelected --Current project index
+	if (selProj == 0 or selProj == undefined) do (selProj = 1)
 
-	if (tArray != "") and (tArray != undefined) then
+	if ((tArray != "") and (tArray != undefined)) then
 	(
 		--Safely transfer array into variable
-		projectsArray = execute tArray
+		TMP_ProjectArray = execute tArray
 
 		--Check if project still exists
-		if (projectsArray[cp] != undefined) then
+		if (TMP_ProjectArray[selProj] != undefined) then
 		(
-			--ui_currentProject.items = projectsArray
-			local pro = (projectsArray[cp] as string)
+			--ui_currentProject.items = TMP_ProjectArray
+			local pro = (TMP_ProjectArray[selProj] as string)
 
 			print("Loading settings from file: " + PBS + " as project: " + pro)
 
@@ -154,6 +120,7 @@ fn LoadSettings =
 			LS.s_Engine 		 	= (getINISetting PBS pro "s_Engine") as Integer
 			LS.s_ImportFromRaw 	 	= (getINISetting PBS pro "s_ImportFromRaw") as booleanClass
 			LS.s_ForwardAxis 	 	= (getINISetting PBS pro "s_ForwardAxis") as Integer
+			LS.s_PreferredPrefixes  = (getINISetting PBS pro "s_PreferredPrefixes")
 			LS.s_MeshGroupPrefix 	= (getINISetting PBS pro "s_MeshGroupPrefix")
 
 			LS.s_BonePrefix 	 	= (getINISetting PBS pro "s_BonePrefix")
@@ -171,7 +138,7 @@ fn LoadSettings =
 			LS.s_ac_RemoveFilePre 	= (getINISetting PBS pro "s_ac_RemoveFilePre") as Integer
 			LS.s_ac_RemoveFileSuf 	= (getINISetting PBS pro "s_ac_RemoveFileSuf") as Integer
 
-			selectedProject = cp
+			GP_CurrentProjectSelected = selProj
 		)
 		else
 		(
@@ -185,7 +152,7 @@ fn LoadSettings =
 )
 
 --Main UI window--
-rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:410
+rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:430
 (
 	group "Project"
 	(
@@ -203,6 +170,7 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:410
 		edittext ui_projectSource "Project Source:" text:("D:\\Unity\\Your\\ProjectSource\\") width: 275 align:#left tooltip:"Path to project's 'source/ raw' directory"
 		--edittext ui_projectAsset "Asset folder:" text:("") width: 275 align:#left tooltip:"Extra path directory for asset folder"
 		checkbox ui_ImportFromRaw "Import from source setup" tooltip:"Whether or not to export to external source location or to mirrored project folder."
+		edittext ui_preferredPrefixes "Preferred prefixes:" text:("sk:,rig:,fpp:,player:,char:,human:,skeleton:,bones:,a:") width: 275 align:#left tooltip:"Assign a set of prefixes the 'smart algorithms' uses (Seperate by comma)"
 	)
 
 	group "Geometry"
@@ -237,19 +205,20 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:410
 	--Updates UI fields with file data
 	fn UpdateUI =
 	(
-		ui_currentProject.items 	= projectsArray
-		ui_currentProject.selection = selectedProject
+		ui_currentProject.items 	= TMP_ProjectArray
+		ui_currentProject.selection = GP_CurrentProjectSelected
 
+		ui_Engine.selection 	 	= LS.s_Engine
 		ui_projectRoot.text 	 	= LS.p_projectRoot
 		ui_projectSource.text 	 	= LS.p_projectSource
 		--ui_projectAsset.text 	 	= LS.p_projectAsset
-
-		ui_Engine.selection 	 	= LS.s_Engine
 		ui_ImportFromRaw.state 	 	= LS.s_ImportFromRaw
-		--ui_ForwardAxis.selection 	= LS.s_ForwardAxis
-		ui_MeshGroupPrefix.text  	= LS.s_MeshGroupPrefix
+		ui_preferredPrefixes.text  	= LS.s_preferredPrefixes
 
-		--ui_BonePrefix.text 		 	= LS.s_BonePrefix
+		ui_MeshGroupPrefix.text  	= LS.s_MeshGroupPrefix
+		--ui_ForwardAxis.selection 	= LS.s_ForwardAxis
+
+		--ui_BonePrefix.text 		= LS.s_BonePrefix
 		--ui_BoneRoot.text 		 	= LS.s_BoneRoot
 		--ui_AlignPrefix.text 	 	= LS.s_AlignPrefix
 
@@ -274,7 +243,7 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:410
 
 		fn fChanged t_setting t_settingKey t_type =
 		(
-			local pro = (projectsArray[selectedProject] as string)
+			local pro = (TMP_ProjectArray[GP_CurrentProjectSelected] as string)
 			getSetting = (getINISetting PBS pro (t_settingKey as string)) as t_type
 			if (t_setting != getSetting) do (dirty = true)
 		)
@@ -286,6 +255,8 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:410
 
 		fChanged ui_Engine.selection 	  	"s_Engine" Integer
 		fChanged ui_ImportFromRaw.state   	"s_ImportFromRaw" booleanClass
+		fChanged ui_preferredPrefixes.text  "s_PreferredPrefixes" string
+
 		--fChanged ui_ForwardAxis.selection "s_ForwardAxis" Integer
 		fChanged ui_MeshGroupPrefix.text  	"s_MeshGroupPrefix" string
 
@@ -307,30 +278,38 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:410
 		return dirty
 	)
 
-	on PipeBoy_ProjectSettings open do
+	fn TrySetNewProject newProject =
 	(
-		--print ("Doing opening actions!")
-		path_settings = getScriptLocation (getThisScriptFilename() as string) "PipeBoy_ProjectSettings"
-		--PBS = (path_settings + "PipeBoy_Settings.ini") --Setup settings file
-		PBS = (pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\PipeBoy_Settings.ini")
+		if (newProject == GP_CurrentProjectSelected) do (return())
 
-		if (selectedProject == undefined or selectedProject == 0) do
-		(
-			selectedProject = 1
-		)
+		local pro = GP_CurrentProjectSelected
+		local dirty = CheckIfDirty()
 
-		if (projectsArray != undefined) do
+		if (dirty == true) do
 		(
-			if (selectedProject > projectsArray.count) do
+			if (queryBox "Discard unsaved changes?" title:"Discard" == false) do
 			(
-				selectedProject = 1
+				GP_CurrentProjectSelected = pro
+				ui_currentProject.selection = GP_CurrentProjectSelected
+
+				return()
 			)
 		)
 
-		ui_currentProject.selection = selectedProject
+		GP_CurrentProjectSelected = newProject
+		LoadProjectSettings()
+		UpdateUI()
+	)
+
+	on PipeBoy_ProjectSettings open do
+	(
+		if (GP_CurrentProjectSelected == undefined or GP_CurrentProjectSelected == 0) do ( GP_CurrentProjectSelected = 1 )
+		if (TMP_ProjectArray != undefined) do ( if (GP_CurrentProjectSelected > TMP_ProjectArray.count) do ( GP_CurrentProjectSelected = 1 ) )
+
+		ui_currentProject.selection = GP_CurrentProjectSelected
 
 		--Load in data
-		LoadSettings()
+		LoadProjectSettings()
 
 		--Update interface fields and values
 		UpdateUI()
@@ -338,27 +317,27 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:410
 
 	on ui_button_addProject pressed do
 	(
-		TempList = projectsArray
-		createDialog rlt_addProject
+		TempList = TMP_ProjectArray
+		createDialog rlt_projectSettings_addProject
 	)
 
 	on ui_button_removeProject pressed do
 	(
 		if (queryBox "Are you sure you want to remove the project? This action is not undoable." title:"Remove project" == true) do
 		(
-			local pro = projectsArray[selectedProject]
+			local pro = TMP_ProjectArray[GP_CurrentProjectSelected]
 
 			--Delete from file
 			delIniSetting PBS pro
 			--Delete in local array
-			deleteItem projectsArray selectedProject
+			deleteItem TMP_ProjectArray GP_CurrentProjectSelected
 
-			selectedProject = 1
+			GP_CurrentProjectSelected = 1
 
 			--Save global settings
-			setINISetting PBS "MainData" "g_Projects" (projectsArray as string)
+			setINISetting PBS "MainData" "g_Projects" (TMP_ProjectArray as string)
 
-			LoadSettings()
+			LoadProjectSettings()
 
 			UpdateUI()
 
@@ -369,156 +348,49 @@ rollout PipeBoy_ProjectSettings "Project Settings" width:300 height:410
 	on ui_button_saveSettings pressed do
 	(
 		--Save settings to ".ini" file
-		SaveSettings()
+		SaveProjectSettings()
+
+		UpdateUI()
 	)
 
 	--[Actions when changing settings]--
-	on ui_currentProject selected newProject do
-	(
-		if (newProject == selectedProject) do (return())
-
-		local pro = selectedProject
-		local dirty = CheckIfDirty()
-
-		if (dirty == true) then
-		(
-			if (queryBox "Discard unsaved changes?" title:"Discard" == false) then
-			(
-				selectedProject = pro
-				ui_currentProject.selection = selectedProject
-
-				return()
-			)
-			else
-			(
-				selectedProject = newProject
-				LoadSettings()
-				UpdateUI()
-
-				return()
-			)
-		)
-		else
-		(
-			selectedProject = newProject
-			LoadSettings()
-			UpdateUI()
-
-			return()
-		)
-	)
+	on ui_currentProject selected newProject do	( TrySetNewProject(newProject) )
 
 	--Project
-	on ui_Engine selected newEngine do
-	(
-		LS.s_Engine = newEngine
-	)
+	on ui_Engine selected newEngine do ( LS.s_Engine = newEngine )
+	on ui_projectRoot changed newString do ( LS.p_projectRoot = newString )
+	on ui_projectSource changed newString do ( LS.p_projectSource = newString )
 
-	on ui_projectRoot changed newString do
-	(
-		LS.p_projectRoot = newString
-	)
+	--Removed for now
+	--on ui_projectAsset changed newString do (	LS.p_projectAsset = newString )
+	on ui_ImportFromRaw changed newState do ( LS.s_ImportFromRaw = newState	)
+	on ui_preferredPrefixes changed newString do ( LS.s_PreferredPrefixes = newString )
 
-	on ui_projectSource changed newString do
-	(
-		LS.p_projectSource = newString
-	)
-
-	/*Removed for now
-	on ui_projectAsset changed newString do
-	(
-		LS.p_projectAsset = newString
-	)
-	*/
-
-	on ui_ImportFromRaw changed newState do
-	(
-		LS.s_ImportFromRaw = newState
-	)
-
-	--Geometry
-	on ui_MeshGroupPrefix changed newString do
-	(
-		LS.s_MeshGroupPrefix = newString
-	)
-
-	/*Removed for now
-	on ui_ForwardAxis changed newAxis do
-	(
-		LS.s_ForwardAxis = newAxis
-	)
-	*/
+	--[ Geometry ]--
+	on ui_MeshGroupPrefix changed newString do ( LS.s_MeshGroupPrefix = newString )
+	--Removed for now
+	--on ui_ForwardAxis changed newAxis do ( LS.s_ForwardAxis = newAxis )
 
 	--[ Animation ]--
 	/*
-	on ui_BonePrefix changed newString do
-	(
-		LS.s_BonePrefix = newString
-	)
-
-	on ui_AlignPrefix changed newString do
-	(
-		LS.s_AlignPrefix = newString
-	)
-
-	on ui_BoneRoot changed newString do
-	(
-		LS.s_BoneRoot = newString
-	)
+	on ui_BonePrefix changed newString do (	LS.s_BonePrefix = newString	)
+	on ui_AlignPrefix changed newString do ( LS.s_AlignPrefix = newString )
+	on ui_BoneRoot changed newString do	( LS.s_BoneRoot = newString	)
 	*/
 
 	--[ Accesory ]--
-	on ui_ac_folder changed newString do
-	(
-		LS.s_ac_Folder = newString
-	)
-
-	/*
-	on ui_ac_prefix changed newString do
-	(
-		LS.s_ac_Prefix = newString
-	)
-	*/
-
-	/*
-	on ui_ac_findIntelligent changed newState do
-	(
-		LS.s_ac_FindIntelligent = newState
-	)
-	*/
-
-	on ui_ac_lockRoot changed newState do
-	(
-		LS.s_ac_LockRoot = newState
-	)
-
-	on ui_ac_lockRootDepth changed newVal do
-	(
-		LS.s_ac_LockRootDepth = newVal
-	)
-
-	on ui_ac_filePrefix changed newString do
-	(
-		LS.s_ac_FilePrefix = newString
-	)
-
-	on ui_ac_fileSuffix changed newString do
-	(
-		LS.s_ac_FileSuffix = newString
-	)
-
-	on ui_ac_removeFilePre changed newVal do
-	(
-		LS.s_ac_RemoveFilePre = newVal
-	)
-
-	on ui_ac_removeFileSuf changed newVal do
-	(
-		LS.s_ac_RemoveFileSuf = newVal
-	)
+	on ui_ac_folder changed newString do ( LS.s_ac_Folder = newString )
+	--on ui_ac_prefix changed newString do ( LS.s_ac_Prefix = newString )
+	--on ui_ac_findIntelligent changed newState do ( LS.s_ac_FindIntelligent = newState	)
+	on ui_ac_lockRoot changed newState do (	LS.s_ac_LockRoot = newState	)
+	on ui_ac_lockRootDepth changed newVal do ( LS.s_ac_LockRootDepth = newVal )
+	on ui_ac_filePrefix changed newString do ( LS.s_ac_FilePrefix = newString )
+	on ui_ac_fileSuffix changed newString do ( LS.s_ac_FileSuffix = newString )
+	on ui_ac_removeFilePre changed newVal do ( LS.s_ac_RemoveFilePre = newVal )
+	on ui_ac_removeFileSuf changed newVal do ( LS.s_ac_RemoveFileSuf = newVal )
 )
 
-rollout rlt_addProject "Add project" width:275 height:60
+rollout rlt_projectSettings_addProject "Add project" width:275 height:60
 (
 	edittext project_name "Project name:" fieldWidth:150 labelOnTop:true
 	button okButton "Add" pos:[170,21]
@@ -528,14 +400,14 @@ rollout rlt_addProject "Add project" width:275 height:60
 	(
 		if (project_name.text != "") then
 		(
-			append projectsArray (project_name.text as string)
-			PipeBoy_ProjectSettings.ui_currentProject.items = projectsArray
-			PipeBoy_ProjectSettings.ui_currentProject.selection = projectsArray.count
-			selectedProject = projectsArray.count
+			append TMP_ProjectArray (project_name.text as string)
+			PipeBoy_ProjectSettings.ui_currentProject.items = TMP_ProjectArray
+			PipeBoy_ProjectSettings.ui_currentProject.selection = TMP_ProjectArray.count
+			GP_CurrentProjectSelected = TMP_ProjectArray.count
 
-			SaveSettings query:#false
+			SaveProjectSettings query:#false
 
-			destroyDialog rlt_addProject
+			destroyDialog rlt_projectSettings_addProject
 		)
 		else
 		(
@@ -545,10 +417,10 @@ rollout rlt_addProject "Add project" width:275 height:60
 
 	on cancelButton pressed do
 	(
-		destroyDialog rlt_addProject
+		destroyDialog rlt_projectSettings_addProject
 	)
 )
 
-createDialog PipeBoy_ProjectSettings  pos:[1100,300]
+--createDialog PipeBoy_ProjectSettings  pos:[1100,300]
 --clearListener()
 )

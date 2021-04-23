@@ -1,16 +1,25 @@
 /*////////////////////////////////////////////////
-pipeboy is a pipeline tool that strives to improve
+PipeBoy is a pipeline tool that strives to improve
 general workflows for game-related asset creation.
 ////////////////////////////////////////////////*/
 
---start pipeboy--
+--Start PipeBoy--
 (--start local scope
 include "$userscripts\maxboy\maxboy_functions.ms"
 
---initialize persistent globals
-persistent global currentprojectselected
-persistent global AssetTypeSelection
-persistent global printtoconsole
+--Initialize persistent globals
+persistent global GP_CurrentProjectSelected
+persistent global GP_AssetTypeSelection
+persistent global GP_PrintToConsole
+
+--Misc menu settings memory
+persistent global GP_MeshGrouper
+persistent global GP_GenerateLODs
+persistent global GP_SeparateMeshFiles
+persistent global GP_UseSequenceList
+persistent global GP_ExportAccessory
+persistent global GP_Character
+persistent global GP_Accessory
 
 --Global rollout references
 global ro_m
@@ -18,38 +27,32 @@ global ro_s
 global ro_a
 global ro_p
 
---remember which panels are open
+--Remember which panels are open (bools)
 persistent global ro_open_m
 persistent global ro_open_s
 persistent global ro_open_a
 persistent global ro_open_p
 
---misc menu settings memory
-persistent global p_meshGrouper
-persistent global p_generateLods
-persistent global p_separateMeshFiles
-persistent global p_useSequenceList
-persistent global p_exportAccessory
-
---initialize globals
+--Initialize globals
+global PipeBoyInitialized --Delay setting persistent vars and other update functions
 global gname = (getfilenamefile  maxfilename)
-global pipeboy --rollout class handle
-global pipeboysettings --pipeboy settings file
-global pipeboyanimsetup --pipeboy animation setup file
-global pipeboySub --Subrollout inside main pipeboy rollout
-global pbs --pipeboy settings .ini file handle
-global allowStorePersistance --Delay setting persistent vars
+global PipeBoy --rollout class handle
+global PipeBoysettings = (pathconfig.getdir #userscripts) + ( "\\maxboy\\PipeBoy_projectsettings.ms") --PipeBoy settings file
+global PipeBoyanimsetup = (pathconfig.getdir #userscripts) + ( "\\maxboy\\PipeBoy_animsetup.ms") --PipeBoy animation setup file
+global PipeBoySub --Subrollout inside main PipeBoy rollout
+global PBS = (pathconfig.getdir #userscripts) + ( "\\maxboy\\PipeBoy_settings.ini") --PipeBoy settings .ini file handle
 global PipeBoy_FloaterWindowHeight --Height of floater
-
+global ExportTimerStart
+global ExportTimerEnd
 
 --Temp arrays
-global exportgroup = #()
-global exportResults = #()
-global cleangroup = #()
-global projectarray = #()
-global sequencearray = #()
+global TMP_ExportGroup = #()
+global TMP_ExportResults = #()
+global TMP_CleanGroup = #()
+global TMP_ProjectArray = #()
+global TMP_SequenceArray = #()
 
---Local settings struct
+--Settings struct
 struct LocalSettings
 (
 	p_projectRoot, 		--String
@@ -58,6 +61,7 @@ struct LocalSettings
 
 	s_Engine, 			--Integer
 	s_ImportFromRaw, 	--booleanClass
+	s_PreferredPrefixes,--String
 	s_ForwardAxis, 		--Integer
 	s_MeshGroupPrefix, 	--String
 
@@ -77,7 +81,7 @@ struct LocalSettings
 	s_ac_RemoveFileSuf  --Integer
 )
 
---local sequence struct
+--Sequence struct
 struct sequence
 (
 	sequenceName		= "null",   --string
@@ -86,77 +90,15 @@ struct sequence
 	range_end 			= 1 		--integer
 )
 
---initialize local settings "container" to easily store and update for later
-global ls = localsettings()
+--Initialize local settings "container" to easily store and update for later
+global LS = LocalSettings()
 
-
---loads project variables
-fn loadvariables =
-(
-	--setup which project to load from file
-	--print("pbs: " + pbs)
-
-	try
-	(
-		--Try because .INI file might be missing and throw an error
-		tempprojectarray = getinisetting pbs "maindata" "g_projects"
-		global projectarray = execute tempprojectarray
-
-		if (currentprojectselected == undefined or currentprojectselected == 0) then
-			t_selectproject = 1
-			else
-			t_selectproject = currentprojectselected
-
-		global currentprojectselected = t_selectproject
-
-		if (projectarray[t_selectproject] != undefined) then
-		(
-			local pro = (projectarray[t_selectproject] as string)
-
-			global p_projectroot 		= (getinisetting pbs pro "p_projectroot")
-			global p_projectsource 		= (getinisetting pbs pro "p_projectsource")
-			global p_projectasset 		= (getinisetting pbs pro "p_projectasset")
-
-			global s_engine 			= (getinisetting pbs pro "s_engine") as integer
-			global s_importfromraw 		= (getinisetting pbs pro "s_importfromraw") as booleanclass
-			global s_forwardaxis 		= (getinisetting pbs pro "s_forwardaxis") as integer
-			global s_meshgroupprefix 	= (getinisetting pbs pro "s_meshgroupprefix")
-
-			global s_boneprefix 		= (getinisetting pbs pro "s_boneprefix")
-			global s_boneroot 			= (getinisetting pbs pro "s_boneroot")
-			global s_alignprefix 		= (getinisetting pbs pro "s_alignprefix")
-
-			global s_ac_folder 			= (getinisetting pbs pro "s_ac_folder")
-			global s_ac_prefix 			= (getinisetting pbs pro "s_ac_prefix")
-			global s_ac_findintelligent = (getinisetting pbs pro "s_ac_findintelligent") as booleanclass
-			global s_ac_lockroot		= (getinisetting pbs pro "s_ac_lockroot") as booleanclass
-			global s_ac_lockrootdepth 	= (getinisetting pbs pro "s_ac_lockrootdepth") as integer
-
-			global s_ac_fileprefix 		= (getinisetting pbs pro "s_ac_fileprefix")
-			global s_ac_filesuffix 		= (getinisetting pbs pro "s_ac_filesuffix")
-			global s_ac_removefilepre 	= (getinisetting pbs pro "s_ac_removefilepre") as integer
-			global s_ac_removefilesuf 	= (getinisetting pbs pro "s_ac_removefilesuf") as integer
-
-			printc("Loaded project: " + pro)
-		)
-		else
-		(
-			messagebox "Project seems to be missing!" title:"Missing project!"
-		)
-	)
-	catch
-	(
-		print("Warning: Failed to load .INI file!")
-
-		--Try resetting it
-		pbs = (pathconfig.getdir #userscripts) + ( "\\maxboy\\pipeboy_settings.ini")
-
-		return()
-	)
-)
+--Dependent include (Sub-Floater)
+include "$userscripts\maxboy\pipeboy_animsetup.ms"
+include "$userscripts\maxboy\pipeboy_projectsettings.ms"
 
 --load from .boi file
-fn loadsequences =
+fn LoadSequences =
 (
 	--call garbage collection to avoid i/o issues
 	gc()
@@ -168,17 +110,16 @@ fn loadsequences =
 	)
 
 	--remove file name's extension
-	local filteredname = replace (maxfilename as string) (maxfilename.count - 3) 4 ""
-
-	--construct search path
-	local relativepath = ((getscriptlocation (getthisscriptfilename() as string) "pipeboy") + "\\animsetup\\" + filteredname + ".boi")
+	local filteredName = (filterString (maxFileName as string) ".")[1]
+	local relativePath = ((GetDir #userScripts + "\\MaxBoy\\AnimSetup\\") + filteredName + ".boi")
 
 	--convert to valid search path
-	local filepath = converttopath relativepath
+	local filepath = ConvertToPath relativePath
 
-	if (doesfileexist filepath == false) do
+	if (DoesFileExist filepath == false) do
 	(
-		printc("No file to load from @ " + (filepath as string))
+		printc("No file to load from @ " + (relativePath as string))
+		free TMP_SequenceArray
 		return()
 	)
 
@@ -186,8 +127,8 @@ fn loadsequences =
 
 	if (ofile != undefined) then
 	(
-		--print("loading sequences from >> " + relativepath)
-		sequencearray = #()
+		--print("loading sequences from >> " + relativePath)
+		TMP_SequenceArray = #()
 
 		local i = 0
 
@@ -214,20 +155,20 @@ fn loadsequences =
 
 				local loadsequence = sequence sequenceName:(r_name) exportAccessory:r_expa range_start:r_fsta range_end:r_fend
 
-				append sequencearray loadsequence
+				append TMP_SequenceArray loadsequence
 			)
 		) while (searchresult != undefined)
 
 		close ofile
 
-		--print("sequence array >> " + sequencearray as string)
-		if (sequencearray.count == 0) then
+		--print("sequence array >> " + TMP_SequenceArray as string)
+		if (TMP_SequenceArray.count == 0) then
 		(
 			printc("Load Sequences :: [ Found (.boi) file, but found no sequences! ]")
 		)
 		else
 		(
-			printc("Load Sequences :: [ Loaded (" + (sequencearray.count as string) + ") sequences from file ]")
+			printc("Load Sequences :: [ Loaded (" + (TMP_SequenceArray.count as string) + ") sequences from file ]")
 		)
 	)
 	else
@@ -241,28 +182,44 @@ fn loadsequences =
 
 fn cbf_updateui =
 (
+	--Don't update UI until we're fully booted up!
+	if (PipeBoyInitialized == false) do ( return() )
+
 	--Load related settings
-	loadvariables()
+	LoadProjectSettings()
 
 	--Load related scene sequence list
-	loadsequences()
+	LoadSequences()
 
 	if (ro_m != undefined) then
 	(
-		ro_m.anim_range_start.value = normtime 0
-		ro_m.anim_range_end.value = normtime 1
+		ro_m.UI_AnimRange_Start.value = normtime 0
+		ro_m.UI_AnimRange_End.value = normtime 1
 	)
-	else
+	else ( printc("UpdateUI :: rollout main is undefined!") )
+
+	if (ro_a != undefined) then
 	(
-		print("UpdateUI :: rollout main is undefined!")
-	)
+		--Do asset related UI updating
+	) else ( printc("UpdateUI :: rollout animation is undefined!") )
 
 	if (ro_s != undefined) then
 	(
+		fn TryGetRootNode =
+		(
+			local rootNodeResult = (GetRootNodes())[1]
+
+			if (rootNodeResult != undefined) do
+			(
+				ro_s.UI_PickCharacter.object = rootNodeResult
+				ro_s.UI_PickCharacter.text   = rootNodeResult.name
+			)
+		)
+
 		local itemList = #()
 
 		--Update sequence list UI
-		for s in sequencearray do
+		for s in TMP_SequenceArray do
 		(
 			if (s != undefined) then
 			(
@@ -282,50 +239,59 @@ fn cbf_updateui =
 			)
 		)
 
-		ro_s.list_sequences.items = itemList
+		ro_s.UI_List_Sequences.items = itemList
 
 		--Update prefix lists
 		local searchSelection = $*
 
-		local prefixes = #("---")
+		local prefixes = join (#("---")) (FindPrefixesInScene())
 
-		for o in searchSelection do
+		ro_s.UI_Rig_Character.items = prefixes
+		ro_s.UI_Rig_Accessory.items = prefixes
+
+		--Try and find best prefix for character rig
+		for p in prefixes do
 		(
-			local n = o.name
+			local pfArr = filterString LS.s_PreferredPrefixes ", "
+			local matchResult = MatchPatternMultiple str:p patterns:pfArr matchAll:false ind:&foundIndex
 
-			if (n != undefined) do
+			if (foundIndex != undefined) then
 			(
-				if (matchPattern n pattern:("*:*")) do
-				(
-					local i = findString n ":"
-					local pre = (substring n 1 i)
+				matchResult = RemoveLastChar matchResult
 
-					local tryFindPrefix = findItem prefixes pre
+				local inList = findItem prefixes p --Get index of preferred prefix
+				ro_s.UI_Rig_Character.selection = inList --Apply selection to list of prefixes
 
-					if (tryFindPrefix == 0) do
-					(
-						append prefixes pre
-					)
-				)
+				break
+			)
+			else
+			(
+				ro_s.UI_Rig_Character.selection = 1
 			)
 		)
 
-		ro_s.rigCharacter.items = prefixes
-		ro_s.rigAccessory.items = prefixes
+		--If pick character is not selected, try and find a good match
+		if (ro_s.UI_PickCharacter.object == undefined) then
+		(
+			TryGetRootNode()
+		)
+		else
+		(
+			if (isValidNode ro_s.UI_PickCharacter.object == false) do
+			(
+				TryGetRootNode()
+			)
+		)
 	)
-	else
-	(
-		print("UpdateUI :: rollout sequence is undefined!")
-	)
+	else ( printc("UpdateUI :: rollout sequence is undefined!") )
 
-	printc("updated ui!")
+	printc("Updated UI")
 ) global cbf_updateui_fn = cbf_updateui --store as global varaible
 
-
-fn lodgenerator &obj lods =
+fn GenerateLOD &obj lods =
 (
-	clearselection()
-	disablesceneredraw()
+	ClearSelection()
+	DisableSceneRedraw()
 
 	try
 	(
@@ -335,28 +301,30 @@ fn lodgenerator &obj lods =
 		(
 			try
 			(
-				local removeobjfromexport = finditem exportgroup lodobj
-				deleteitem exportgroup removeobjfromexport
+				local removeobjfromexport = finditem TMP_ExportGroup lodobj
+				deleteitem TMP_ExportGroup removeobjfromexport
 			)
 			catch
 			(
 				print("couldn't delete object from export group!")
+
+				throw()
 			)
 
 
 			local safelodcopy = CopyNodes collection:lodobj
-			append cleangroup safelodcopy
+			append TMP_CleanGroup safelodcopy
 
 			templodobj = safelodcopy[1]
 			templodobj.name = ((trimright lodobj.name "0123456789") + "_lod0")
 
-			append exportgroup templodobj
+			append TMP_ExportGroup templodobj
 
 			for i = 1 to lods do
 			(
 				safelodstepcopy = CloneNodes collection:templodobj
 
-				append cleangroup safelodstepcopy
+				append TMP_CleanGroup safelodstepcopy
 				lodstepobject = safelodstepcopy[1]
 				lodstepobject.name = ((trimright templodobj.name "0123456789") +  i as string)
 
@@ -383,7 +351,7 @@ fn lodgenerator &obj lods =
 
 				--lodstepobject.position.y += (250 * i)
 
-				append exportgroup lodstepobject
+				append TMP_ExportGroup lodstepobject
 
 				--free lodstepobject
 			)
@@ -392,24 +360,22 @@ fn lodgenerator &obj lods =
 		)
 	)
 	)
-	catch(enablesceneredraw())
+	catch(EnableSceneRedraw())
 
-	enablesceneredraw()
+	EnableSceneRedraw()
 	clearselection()
 )
 
 fn GetExportLocation =
 (
-	local pro = projectarray[currentprojectselected] as string
-
 	--Trim full file path name with project source path
-	local p_length = ((getinisetting pbs pro "p_projectsource").count)
+	local p_length = (LS.p_projectsource.count)
 	local p_subpath = replace (maxfilepath as string) 1 (p_length) ""
 
 	--Build final path to file export location (Source or project location)
-	local p_fileexportpath = p_fileexportpath = pathconfig.appendpath p_projectroot p_subpath
+	local p_fileexportpath = p_fileexportpath = pathconfig.appendpath LS.p_projectRoot p_subpath
 
-	if (s_importfromraw) do
+	if (LS.s_importfromraw) do
 	(
 		p_fileexportpath = (maxfilepath as string)
 	)
@@ -420,10 +386,10 @@ fn GetExportLocation =
 
 fn PostExportCleanup =
 (
-	if (cleangroup != undefined) do
+	if (TMP_CleanGroup != undefined) do
 	(
-		for o in cleangroup do ( if (isValidnode o) do ( delete o ) )
-		free cleangroup
+		for o in TMP_CleanGroup do ( if (isValidnode o) do ( delete o ) )
+		free TMP_CleanGroup
 	)
 
 	if (safecopies != undefined) do
@@ -432,10 +398,10 @@ fn PostExportCleanup =
 		free safecopies
 	)
 
-	if (exportgroup != undefined) do
+	if (TMP_ExportGroup != undefined) do
 	(
-		for o in exportgroup do ( if (isValidnode o) do ( delete o ) )
-		free exportgroup
+		for o in TMP_ExportGroup do ( if (isValidnode o) do ( delete o ) )
+		free TMP_ExportGroup
 	)
 
 	return()
@@ -460,26 +426,66 @@ fn TryExportCriteria trySelection:false tryCharacter:false =
 
 	if (tryCharacter) do
 	(
-		local cSel = ro_s.rigCharacter.selection
-		local aSel = ro_s.rigAccessory.selection
+		local cSel = ro_s.UI_Rig_Character.selection
+		local aSel = ro_s.UI_Rig_Accessory.selection
 
-		if (cSel == aSel) do
+		local cSelPick = ro_s.UI_PickCharacter.object
+		local aSelPick = ro_s.UI_PickAccessory.object
+
+		local aExp = ro_s.UI_ExportAccessory.checked
+
+		if (aExp) then
 		(
-			messagebox "Character and Accessory rigs are marked as the same!" title:"Export Error!"
-			return false
+			--Check prefix based pick first
+			if (cSel > 1 and aSel > 1) then
+			(
+				if (cSel == aSel) do
+				(
+					MessageBox "Character and Accessory rigs are marked as the same!" title:"Export Error!"
+					return false
+				)
+			)
+			else
+			(
+				--Check if picknodes are set
+				if (cSelPick == undefined) do
+				(
+					MessageBox "No Character rig has been defined!" title:"Export Error!"
+					return false
+				)
+
+				if (aSelPick == undefined) do
+				(
+					MessageBox "No Accessory rig has been defined! Don't want to export accessory? Uncheck the 'Accessory' checkbox!" title:"Export Error!"
+					return false
+				)
+
+				--Compare the pickbutton nodes to see if they're the same, but only if they're set
+				if (cSelPick == aSelPick) do
+				(
+					MessageBox "Character and Accessory rigs are marked as the same! These need to be set as different bone structures!" title:"Export Error!"
+					return false
+				)
+			)
+		)
+		else
+		(
+			--Check if character rig has been set (If we fail both prefix and pickbutton options- return as false)
+			if (cSel <= 1 and cSelPick == undefined) do
+			(
+				MessageBox "No Character rig has been defined!" title:"Export Error!"
+				return false
+			)
 		)
 	)
 
 	return true
 )
 
---Dependent include (Sub-Floater)
-include "$userscripts\maxboy\pipeboy_animsetup.ms"
-
 --Base UI height
 local baseHeight = 94
 
-rollout pipeboy "PipeBoy"
+rollout PipeBoy "PipeBoy"
 (
 	--construct base ui "frame" for rollout windows
 	subrollout ui_base width:235 height:baseHeight pos:[0,0]
@@ -492,7 +498,7 @@ rollout pipeboy "PipeBoy"
 			local fold = if (ro.open) then 1 else -1
 
 			ui_base.height += ro.height * fold
-			pipeboy.height += ro.height * fold
+			PipeBoy.height += ro.height * fold
 
 		    cbf_updateui()
 	    )
@@ -503,19 +509,19 @@ rollout pipeboy "PipeBoy"
 	    )
 	)
 
-	fn refreshrollouts =
+	fn UI_RefreshRollouts =
 	(
-		ro_m = pipeboy.ui_rolloutgroup_main
-		ro_s = pipeboy.ui_rolloutgroup_sequence
-		ro_a = pipeboy.ui_rolloutgroup_asset
-		ro_p = pipeboy.ui_rolloutgroup_project
+		ro_m = PipeBoy.ui_rolloutgroup_main
+		ro_s = PipeBoy.ui_rolloutgroup_sequence
+		ro_a = PipeBoy.ui_rolloutgroup_asset
+		ro_p = PipeBoy.ui_rolloutgroup_project
 
-		pipeboySub = ui_base
+		PipeBoySub = ui_base
 
 		PipeBoy_FloaterWindowHeight = (ro_m.height + ro_s.height + ro_a.height + ro_p.height) + 105
 	)
 
-	fn rotatepivotonlyengine obj =
+	fn RotateEnginePivot obj =
 	(
 		/*
 		1 = x-forward
@@ -526,9 +532,9 @@ rollout pipeboy "PipeBoy"
 
 		local rotvalinv --set up local rotation variable
 
-		case s_engine of
+		case LS.s_engine of
 		(
-			--local rotvalinv = case s_forwardaxis of
+			--local rotvalinv = case LS.s_forwardaxis of
 
 			1:
 			(
@@ -549,15 +555,15 @@ rollout pipeboy "PipeBoy"
 		)
 	)
 
-	fn ExportProcess collection: exportType:1 astart: aend: asequencename: aexport:false overrideredraw:false delayPrint:false =
+	fn ExportProcess collection: exportType:1 astart: aend: asequencename: aexport:false batch:false =
 	(
 		local exportCollection = #()
 
-		--Do this rather than supply default to have it autimatically pick exportgroup if unsupplied
-		if (collection == unsupplied) then ( exportCollection = exportgroup ) else ( exportCollection = collection)
+		--Do this rather than supply default to have it autimatically pick TMP_ExportGroup if unsupplied
+		if (collection == unsupplied) then ( exportCollection = TMP_ExportGroup ) else ( exportCollection = collection)
 
-		local r_start = ro_m.anim_range_start.value
-		local r_end = ro_m.anim_range_end.value
+		local r_start = ro_m.UI_AnimRange_Start.value
+		local r_end = ro_m.UI_AnimRange_End.value
 
 		if (astart != unsupplied) do (r_start = astart)
 		if (aend != unsupplied) do (r_end = aend)
@@ -574,19 +580,23 @@ rollout pipeboy "PipeBoy"
 		if (not doesfileexist p_fileexportpath or not getfileattribute p_fileexportpath #directory) do
 		(
 			--path folder not found, create folder
-			printc("path folder not found, creating folder.")
+			printc("Mirrored export folder not found, creating new folder...")
 			makedir p_fileexportpath
 		)
 
 		--Filename-based naming as a baseline
-		local fileexportname = (p_fileexportpath + gname + ro_a.fileextension.text + ".fbx") as string
+		local FileExportName = (p_fileexportpath + gname + ro_a.UI_FileExtension.text + ".fbx") as string
 
 		--Only select defined collection for export
-		clearSelection()
+		ClearSelection()
 		--select exportCollection
-		selectmore exportCollection
+		SelectMore exportCollection
 
-		if (delayPrint == false) do ( printc(selection) )
+		if (batch == false) do
+		(
+			printc("[ Export selection ]")
+			printc(selection)
+		)
 
 		theplugin = pluginmanager
 		theplugin.loadclass fbxexporter
@@ -613,9 +623,9 @@ rollout pipeboy "PipeBoy"
 				fbxexportersetparam "pushsettings"
 
 				--Perform export operation
-				exportfile (fileexportname) #noprompt selectedonly:true using:theplugin
+				ExportFile FileExportName #noprompt selectedonly:true using:theplugin
 
-				if (delayPrint == false) then ( print("Exported at >> " + fileexportname as string) ) else ( append exportResults ("Exported at >> " + fileexportname) )
+				if (batch == false) then ( print("Exported at >> " + FileExportName as string) ) else ( append TMP_ExportResults ("Exported at >> " + FileExportName) )
 			)
 
 			2:
@@ -635,44 +645,53 @@ rollout pipeboy "PipeBoy"
 				if (asequencename != unsupplied) do
 				(
 					--animation sequence naming
-					fileexportname = (p_fileexportpath + (asequencename as string) + ro_a.fileextension.text + ".fbx") as string
+					FileExportName = (p_fileexportpath + (asequencename as string) + ro_a.UI_FileExtension.text + ".fbx") as string
 				)
+
+				--Grab selection
+				clearSelection()
+				selectmore exportCollection
+
+				--Perform export operation
+				ExportFile FileExportName #noprompt selectedonly:true using:theplugin
+
+				if (batch == false) then ( print("Exported at >> " + FileExportName as string) ) else ( append TMP_ExportResults ("Exported at >> " + FileExportName) )
 
 				--[ Export accessory ]--
 				if (aexport == true) do
 				(
-					local aSel = ro_s.rigAccessory.selection
+					local aSel = ro_s.UI_Rig_Accessory.selection
 
 					local accessoryCopies = undefined
 
-					if (aSel != 0 and aSel != 1) then
+					if (aSel != 1) then
 					(
-						local accessoryChildren = getPrefixObjects pre:ro_s.rigAccessory.selected
+						local accessoryChildren = GetPrefixObjects pre:ro_s.UI_Rig_Accessory.selected allowMeshes:true
 						accessoryCopies = CopyNodes collection:accessoryChildren
 					)
 					else
 					(
-						--local accessory = LocateAccessory pre:s_ac_prefix
-						local accessory = ro_s.pickAccessory.object
+						--local accessory = GetAccessory pre:LS.s_ac_prefix
+						local accessory = ro_s.UI_PickAccessory.object
 
 						if (isValidNode accessory) do
 						(
-							local accessoryChildren = getChildren obj:accessory
+							local accessoryChildren = GetChildren obj:accessory
 							accessoryCopies = CopyNodes collection:accessoryChildren
 						)
 					)
 
 					if (accessoryCopies != undefined) then
 					(
-						stripPrefixes(accessoryCopies)
+						StripPrefixes(accessoryCopies)
 
 						printc("[ Accessory Nodes ]")
 						printc(accessoryCopies)
 
-						if (s_ac_lockroot == true) do
+						if (LS.s_ac_lockroot == true) do
 						(
 							--Start with baking down rig bones to release constraints
-							BakeKeys collection:accessoryCopies rs:r_start re:r_end
+							BakeKeys collection:accessoryCopies rs:r_start re:r_end DelayPrintArr:&TMP_ExportResults
 
 							--Set up root constraints
 							local rootLocker = point name:"RootLocker" size:20
@@ -689,8 +708,16 @@ rollout pipeboy "PipeBoy"
 					        --Apply constraints in certain depth in rig
 					        for i = 1 to s_ac_LockRootDepth do
 					        (
-								accessoryCopies[i].pos.controller = pc
-								accessoryCopies[i].rotation.controller = oc
+					        	try
+					        	(
+					        		accessoryCopies[i].pos.controller = pc
+									accessoryCopies[i].rotation.controller = oc
+			        			)
+			        			catch
+			        			(
+			        				printc("Accessory node is null! Unable to zero accessory root!")
+			        				throw()
+			        			)
 					        )
 						)
 
@@ -703,12 +730,12 @@ rollout pipeboy "PipeBoy"
 
 						if (asequencename != unsupplied) do (adjustedname = (asequencename as string))
 
-						local accessoryname = replace adjustedname 1 s_ac_removefilepre s_ac_fileprefix
-						accessoryname = replace accessoryname (accessoryname.count - s_ac_removefilesuf) s_ac_removefilesuf s_ac_filesuffix
+						local accessoryname = replace adjustedname 1 LS.s_ac_removefilepre LS.s_ac_fileprefix
+						accessoryname = replace accessoryname (accessoryname.count - LS.s_ac_removefilesuf) LS.s_ac_removefilesuf LS.s_ac_filesuffix
 
-						local accessoryfolder =  ((s_ac_folder as string) + "\\")
+						local accessoryfolder =  ((LS.s_ac_folder as string) + "\\")
 
-						accessoryexportname = (p_fileexportpath + accessoryfolder + accessoryname + ro_a.fileextension.text + ".fbx") as string
+						accessoryexportname = (p_fileexportpath + accessoryfolder + accessoryname + ro_a.UI_FileExtension.text + ".fbx") as string
 
 						--Make missing destination folders in windows if they're missing
 						if (not doesfileexist (p_fileexportpath + accessoryfolder) or not getfileattribute (p_fileexportpath + accessoryfolder) #directory) do
@@ -718,7 +745,7 @@ rollout pipeboy "PipeBoy"
 							makedir (p_fileexportpath + accessoryfolder)
 						)
 
-						exportfile (accessoryexportname) #noprompt selectedonly:true using:theplugin
+						ExportFile accessoryexportname #noprompt selectedonly:true using:theplugin
 
 						for o in accessoryCopies do
 						(
@@ -730,7 +757,14 @@ rollout pipeboy "PipeBoy"
 
 						if (isValidnode rootLocker) do (delete rootLocker)
 
-						if (delayPrint == false) then ( print("Exported accessory at >> " + accessoryexportname) ) else ( append exportResults ("Exported accessory at >> " + accessoryexportname) )
+						if (batch == false) then
+						(
+							print("Exported accessory at >> " + accessoryexportname)
+						)
+						else
+						(
+							append TMP_ExportResults ("Exported accessory at >> " + accessoryexportname)
+						)
 					)
 					else
 					(
@@ -738,17 +772,8 @@ rollout pipeboy "PipeBoy"
 					)
 				)
 
-				--Regrab selection
-				clearSelection()
-				selectmore exportCollection
-
-				--Perform export operation
-				exportfile (fileexportname) #noprompt selectedonly:true using:theplugin
-
-				--[ Finish up export sequence]--
+				--[ Finish up after export ]--
 				animationrange = tempinterval
-
-				if (delayPrint == false) then ( print("Exported at >> " + fileexportname as string) ) else ( append exportResults ("Exported at >> " + fileexportname) )
 			)
 
 			3:
@@ -794,7 +819,7 @@ rollout pipeboy "PipeBoy"
 							select exportSelectionSeparated
 
 							--Base filename on mesh name
-							local MeshFileName = (p_fileexportpath + e_mesh.name + ro_a.fileextension.text + ".fbx") as string
+							local MeshFileName = (p_fileexportpath + e_mesh.name + ro_a.UI_FileExtension.text + ".fbx") as string
 
 							--Try and apply folder structure based on parent type
 							if (e_mesh.parent != undefined) do
@@ -808,11 +833,11 @@ rollout pipeboy "PipeBoy"
 									if (not doesfileexist folderPath or not getfileattribute folderPath #directory) do ( makedir folderPath )
 
 									--Modify filename to match folder parent naming
-									MeshFileName = (folderPath + e_mesh.name + ro_a.fileextension.text + ".fbx") as string
+									MeshFileName = (folderPath + e_mesh.name + ro_a.UI_FileExtension.text + ".fbx") as string
 								)
 							)
 
-							exportfile (MeshFileName) #noprompt selectedonly:true using:theplugin
+							ExportFile MeshFileName #noprompt selectedonly:true using:theplugin
 
 							print("Exported file :: " + MeshFileName)
 						)
@@ -825,12 +850,20 @@ rollout pipeboy "PipeBoy"
 
 		clearselection()
 
-		if (overrideredraw == false) do ( enablesceneredraw() )
+		if (batch == false) do
+		(
+			EnableSceneRedraw()
+
+			--Stop the timer, we're done!
+			ExportTimerEnd = timeStamp()
+
+			print(">> Exported file(s) in :: " + (((ExportTimerEnd - ExportTimerStart) / 1000.0) as string) + "s")
+		)
 	)
 
 	fn PrepMesh collection:$* groupMesh:false lod:false lod_amount:3 =
 	(
-		refreshrollouts()
+		UI_RefreshRollouts()
 
 		local objectselection = collection as array
 
@@ -848,7 +881,7 @@ rollout pipeboy "PipeBoy"
 		(
 			printc("found exclusion node!")
 
-			local removeobjectsselection = getChildren obj:excludeobject
+			local removeobjectsselection = GetChildren obj:excludeobject
 
 			for i = 1 to removeobjectsselection.count do
 			(
@@ -861,8 +894,8 @@ rollout pipeboy "PipeBoy"
 
 		global grouparray = #()
 
-		free cleangroup
-		free exportgroup
+		free TMP_CleanGroup
+		free TMP_ExportGroup
 
 		try
 		(
@@ -872,22 +905,22 @@ rollout pipeboy "PipeBoy"
 			(
 				--create root export object for axis conversion
 				local exportparent = point size:500 name:"exportparent"
-				rotatepivotonlyengine(exportparent)
-				freezetransforms(exportparent)
+				RotateEnginePivot(exportparent)
+				FreezeTransforms(exportparent)
 
-				append exportgroup exportparent
-				append cleangroup exportparent
+				append TMP_ExportGroup exportparent
+				append TMP_CleanGroup exportparent
 
 				--clone export objects for non-destructive processing
 				local safecopies = CopyNodes collection:objectselection
 
-				--append cleangroup safecopies --PENDING DEPRECATION
-				join cleangroup safecopies
+				--append TMP_CleanGroup safecopies --PENDING DEPRECATION
+				join TMP_CleanGroup safecopies
 
 				--make all instances in selection unique (will be ignored otherwise)
 				instancemgr.makeobjectsunique safecopies #individual
 
-				if (s_meshgroupprefix == undefined) do (s_meshgroupprefix = "g_")
+				if (LS.s_meshgroupprefix == undefined) do (LS.s_meshgroupprefix = "g_")
 
 				--assume there are no mesh group objects in scene
 				local validgroupobjects = false
@@ -895,7 +928,7 @@ rollout pipeboy "PipeBoy"
 				--collect mesh groups in selection
 				for obj in safecopies do
 				(
-					if (matchpattern obj.name pattern:(s_meshgroupprefix + "*") == true) do
+					if (matchpattern obj.name pattern:(LS.s_meshgroupprefix + "*") == true) do
 					(
 						printc("found group object: " + obj.name + " - adding to array")
 						append grouparray obj
@@ -913,20 +946,20 @@ rollout pipeboy "PipeBoy"
 						printc("[---------creating mesh group---------]")
 						printc("group object: " + g.name)
 
-						local meshSearchCollection = getChildren obj:g
-						local combininggroup = filterformeshes(meshSearchCollection)
+						local meshSearchCollection = GetChildren obj:g
+						local combininggroup = FilterMeshes(meshSearchCollection)
 
 						printc("\ngroup objects {")
 						printc(combininggroup as array)
 
-						--local groupname = replace (trimright (g.name as string) "0123456789") 1 s_meshgroupprefix.count ""
-						local groupname = replace (g.name as string) 1 s_meshgroupprefix.count ""
+						--local groupname = replace (trimright (g.name as string) "0123456789") 1 LS.s_meshgroupprefix.count ""
+						local groupname = replace (g.name as string) 1 LS.s_meshgroupprefix.count ""
 
 						local groupparent = point size:100 name:(("g_" + groupname) as string)
-						rotatepivotonlyengine(groupparent)
+						RotateEnginePivot(groupparent)
 
-						append exportgroup groupparent
-						append cleangroup groupparent
+						append TMP_ExportGroup groupparent
+						append TMP_CleanGroup groupparent
 
 						local combinedmesh = editable_mesh name:(("mg_" + groupname) as string)
 						convertto combinedmesh editable_poly
@@ -955,17 +988,17 @@ rollout pipeboy "PipeBoy"
 						combinedmesh.parent = groupparent
 
 						--Fix pivot orientation to engine specifics
-						rotatepivotonlyengine(combinedmesh)
+						RotateEnginePivot(combinedmesh)
 
 						--add combined object to group
-						append exportgroup combinedmesh
-						append cleangroup combinedmesh
+						append TMP_ExportGroup combinedmesh
+						append TMP_CleanGroup combinedmesh
 					)
 				)
 				else
 				(
 					--regular export selection
-					local combininggroup = filterformeshes(safecopies)
+					local combininggroup = FilterMeshes(safecopies)
 
 					for c in combininggroup do
 					(
@@ -979,17 +1012,17 @@ rollout pipeboy "PipeBoy"
 						if (currentparent == undefined) then (c.parent = exportparent) else (c.parent = currentparent)
 
 						--Fix pivot orientation to engine specifics
-						rotatepivotonlyengine(c)
+						RotateEnginePivot(c)
 
-						append exportgroup c
-						--append cleangroup c
+						append TMP_ExportGroup c
+						--append TMP_CleanGroup c
 					)
 				)
 			)
 		)
 		catch
 		(
-			enablesceneredraw()
+			EnableSceneRedraw()
 
 			PostExportCleanup()
 
@@ -1000,14 +1033,14 @@ rollout pipeboy "PipeBoy"
 
 		if (lod == true) do
 		(
-			local lodmeshsgroups = filterformeshes exportgroup
-			lodgenerator lodmeshsgroups lod_amount
+			local lodmeshsgroups = FilterMeshes TMP_ExportGroup
+			GenerateLOD lodmeshsgroups lod_amount
 		)
 
 		--done!
 		printc("\n Operation done!")
 		printc("[ Export Group ]")
-		printc(exportgroup)
+		printc(TMP_ExportGroup)
 
 		rotate exportparent (eulerangles 0 0 -90)
 
@@ -1015,46 +1048,49 @@ rollout pipeboy "PipeBoy"
 		return()
 	)
 
-
+	--UI main rollouts
 	rollout ui_rolloutgroup_main "EXPORT"
     (
-
 		group "General"
 		(
-			button Export "Export" width:94 pos:[14, 22]
-			button ExportSelection "Export Selection" width:94 pos:[116, 22]
+			button UI_Export "Export" width:94 pos:[14, 22] tooltip:"Exports <ALL GEOMETRY> from scene"
+			button UI_ExportSelection "Export Selection" width:94 pos:[116, 22] tooltip:"Exports all <SELECTED GEOMETRY> from scene"
 		)
 
 		group "Animation"
 		(
-			button ExportAnimation "Export Animation" width:94 pos:[14, 70]
+			button UI_ExportAnimation "Export Animation" width:94 pos:[14, 70] tooltip:"Exports animation from scene from selected rigs in the 'Animation' tab"
 
-			spinner anim_range_start "" pos:[115, 73] width:42 height:16 range:[-10000, 10000, normtime 0] type:#integer
-			spinner anim_range_end  "to " pos:[115+54, 73] width:42 height:16 range:[-10000, 10000, normtime 1] type:#integer
+			spinner UI_AnimRange_Start "" pos:[115, 73] width:42 height:16 range:[-10000, 10000, normtime 0] type:#integer tooltip:"Animation export's start frame"
+			spinner UI_AnimRange_End  "to " pos:[115+54, 73] width:42 height:16 range:[-10000, 10000, normtime 1] type:#integer tooltip:"Animation export's end frame"
 		)
 
 		group "Folder"
 		(
-			button OpenExportLocation "Export Location" width:94 pos:[14, 116]
-			button OpenSourceLocation "Source Location" width:94 pos:[116, 116]
+			button UI_OpenExportLocation "Export Location" width:94 pos:[14, 116] tooltip:"Open explorer window to <EXPORT> location"
+			button UI_OpenSourceLocation "Source Location" width:94 pos:[116, 116] tooltip:"Open explorer window to <SOURCE> location"
 		)
 
 		on ui_rolloutgroup_main rolledup newState do
 		(
 			ResizeFloaterWindow ui_rolloutgroup_main
-			if (allowStorePersistance) do ( ro_open_m = newState )
+			if (PipeBoyInitialized) do ( ro_open_m = newState )
 		)
 
-		on Export pressed do
+		on UI_Export pressed do
 		(
 			if (TryExportCriteria == false) do ( return() )
 
+			--Start export timer
+			ExportTimerStart = timeStamp()
+
 			print(" << Export >> ")
 
-			loadvariables() -- double check saved variables
-			refreshrollouts() --same for rollouts
+			UI_RefreshRollouts() --UI_Refresh rollout references
 
-			case AssetTypeSelection of
+			cbf_updateui() --Update UI
+
+			case GP_AssetTypeSelection of
 			(
 				--Geometry
 				1:
@@ -1067,16 +1103,16 @@ rollout pipeboy "PipeBoy"
 						return()
 					)
 
-					if (ro_a == undefined) do (refreshrollouts())
+					if (ro_a == undefined) do (UI_RefreshRollouts())
 
-					local combine = ro_a.meshgrouper.state
-					local doLods = false --ro_a.generatelods.state--DISABLED
+					local combine = ro_a.UI_MeshGrouper.state
+					local doLods = false --ro_a.UI_GenerateLODs.state--DISABLED
 
-					PrepMesh collection:exportCollection groupMesh:combine --lod:doLods --lod_amount:0 --ro_a.lodsamount
+					PrepMesh collection:exportCollection groupMesh:combine --lod:doLods --lod_amount:0 --ro_a.UI_GenerateLODs_Amount
 
-					local separate = if (ro_a.separateMeshFiles.state == true) then ( separate = 3 ) else ( separate = 1 )
+					local separate = if (ro_a.UI_SeparateMeshFiles.state == true) then ( separate = 3 ) else ( separate = 1 )
 
-					ExportProcess exportType:separate collection:exportgroup
+					ExportProcess exportType:separate collection:TMP_ExportGroup
 				)
 
 				--Rig
@@ -1093,32 +1129,36 @@ rollout pipeboy "PipeBoy"
 			)
 		)
 
-		on ExportSelection pressed do
+		on UI_ExportSelection pressed do
 		(
 			if (TryExportCriteria trySelection:true == false) do ( return() )
 
-			print(" << Export selection >> ")
+			--Start export timer
+			ExportTimerStart = timeStamp()
 
-			loadvariables() -- double check saved variables
-			refreshrollouts() -- same for rollouts
+			print(" << Export Selection >> ")
 
-			case AssetTypeSelection of
+			UI_RefreshRollouts() --UI_Refresh rollout references
+
+			cbf_updateui() --Update UI
+
+			case GP_AssetTypeSelection of
 			(
 				--Geometry
 				1:
 				(
 					local exportCollection = selection as array
 
-					if (ro_a == undefined) do (refreshrollouts())
+					if (ro_a == undefined) do (UI_RefreshRollouts())
 
-					local combine = ro_a.meshgrouper.state
-					local doLods = false --ro_a.generatelods.state--DISABLED
+					local combine = ro_a.UI_MeshGrouper.state
+					local doLods = false --ro_a.UI_GenerateLODs.state--DISABLED
 
-					PrepMesh collection:exportCollection groupMesh:combine --lod:doLods --lod_amount:0--ro_a.lodsamount
+					PrepMesh collection:exportCollection groupMesh:combine --lod:doLods --lod_amount:0--ro_a.UI_GenerateLODs_Amount
 
-					local separate = if (ro_a.separateMeshFiles.state == true) then ( separate = 3 ) else ( separate = 1 )
+					local separate = if (ro_a.UI_SeparateMeshFiles.state == true) then ( separate = 3 ) else ( separate = 1 )
 
-					ExportProcess exportType:separate collection:exportgroup
+					ExportProcess exportType:separate collection:TMP_ExportGroup
 				)
 
 				--Rig
@@ -1135,104 +1175,128 @@ rollout pipeboy "PipeBoy"
 			)
 		)
 
-		on ExportAnimation pressed do
+		on UI_ExportAnimation pressed do
 		(
 			if (TryExportCriteria tryCharacter:true == false) do ( return() )
 
+			--Start export timer
+			ExportTimerStart = timeStamp()
+
 			print(" << Export Animation >> ")
 
-			loadvariables() -- double check saved variables
-			refreshrollouts() --same for rollouts
+			UI_RefreshRollouts() --UI_Refresh rollout references
 
-			case AssetTypeSelection of
+			cbf_updateui() --Update UI
+
+			case GP_AssetTypeSelection of
 			(
 				--Animation
 				2:
 				(
+					DisableSceneRedraw() --speed up processing
+
+					--Store node selection
+					local ExportSelection = GetCurrentSelection()
+
 					local cNodes = undefined --Node collection of character rig
 					local aNodes = undefined --Node collection of accessory rig
 
-					if (selection.count == 0) then
+					--Pickbutton Character rig node
+					local rootbone = ro_s.UI_PickCharacter.object
+
+					--Aquire character root bone/ hierarchy to export
+					if ((ro_s.UI_Rig_Character.selection > 1) or (rootbone != undefined)) then
 					(
-						if (ro_s.rigCharacter.selection != 1) then
+						--If we've selected a prefix for our character, use that
+						if (ro_s.UI_Rig_Character.selection > 1) then
 						(
-							cNodes = getPrefixObjects pre:ro_s.rigCharacter.selected allowMeshes:true --XRef bones are geometry?
+							cNodes = GetPrefixObjects pre:ro_s.UI_Rig_Character.selected allowMeshes:true --XRef bones are geometry?
 						)
 						else
 						(
-							--local rootbone = getnodebyname (s_boneroot as string) ignorecase:false
-							local rootbone = ro_s.pickCharacter.object
-
+							--If no prefix is applied, use the pick button's node
 							--Backup try to grab node based on name on pickbutton
 							if (rootbone == undefined OR isValidNode rootbone == false) do
 							(
-								rootbone = getNodeByName (ro_s.pickCharacter.text as string)
+								rootbone = getNodeByName (ro_s.UI_PickCharacter.text as string)
 
 								--If still null, exit the function
 								if (rootbone == undefined OR isValidNode rootbone == false) do
 								(
-									enablesceneredraw()
-									messagebox "Can't find root bone, check project settings! (Case sensitive)" title:"NO ROOT!"
+									EnableSceneRedraw()
+									MessageBox "Can't find root bone, check project settings! (Case sensitive)" title:"NO ROOT!"
 									return()
 								)
 							)
 
-							local rootNodes = getChildren obj:rootbone
+							--Grab related child bones
+							local rootNodes = GetChildren obj:rootbone
 							cNodes = rootNodes
 						)
 					)
 					else
 					(
-						local ta = getCurrentSelection()
-						local ti = #()
+						SortToHierarchy &ExportSelection
 
-						sortToHierarchy &ta &ti
+						cNodes = ExportSelection
 
-						local tryGetRoot = ta[1]
-
-						if (isValidNode tryGetRoot == true) then
+						if (cNodes.count == 0) do
 						(
-							local rootNodes = getChildren obj:tryGetRoot
-							cNodes = rootNodes
-						)
-						else
-						(
-							enablesceneredraw()
-							messagebox "Can't find root bone, check project settings! (Case sensitive)" title:"NO ROOT!"
+							EnableSceneRedraw()
+							MessageBox "Nothing selected, quitting export operation..." title:"Empty selection!"
 							return()
 						)
 					)
 
-					-- debug print selection
 					--print("[ Character rig nodes ]")
 					--print(cNodes)
 
 					--Prepare copy array for safe operation
 					local copies = #()
 
+					--Make copies of nodes to export for safer operation
 					try
 					(
-						DisableSceneRedraw() --speed up processing
-
-						--Make copies of bones to export for safer operation
 						copies = CopyNodes collection:cNodes
 
-						--Remove prefixes from copied nodes
-						stripPrefixes(copies)
+						if (copies != undefined) then
+						(
+							--Remove prefixes from copied nodes
+							StripPrefixes &copies
 
-						--Print export node selection
-						printc("[ Nodes ]")
-						printc(copies)
+							--Print export node selection
+							printc("[ Character Nodes ]")
+							printc(copies)
+						)
+						else
+						(
+							print("Export Animation :: Failed to copy nodes to export!")
+							return()
+						)
+					)
+					catch
+					(
+						print("Export Animation :: Failed to copy nodes to export!")
+						throw()
+					)
 
-						if (ro_s.exportsequences.state == true) then
+					--Export list or single range
+					try
+					(
+						--Expression for deciding wether or not to export using single range or sequence list
+						local ExportSequenceList = (ro_s.UI_ExportSequences.state and ro_s.UI_List_Sequences.selection.count > 0)
+
+						--Are we using the sequence list for export?
+						if (ExportSequenceList == true) then
 						(
 							local selectedSequences = #()
 
-							for i in ro_s.list_sequences.selection do
+							--Collect all selected sequences from sequence list
+							for i in ro_s.UI_List_Sequences.selection do
 							(
-								if (sequencearray[i] != undefined) do
+								if (TMP_SequenceArray[i] != undefined) do
 								(
-									append selectedSequences sequencearray[i]
+									append selectedSequences TMP_SequenceArray[i]
 								)
 							)
 
@@ -1240,25 +1304,34 @@ rollout pipeboy "PipeBoy"
 							printc(selectedSequences)
 
 							--Prepare to store export results to print after finishing operation
-							free exportResults
+							free TMP_ExportResults
 
+							--Go through and export each sequence in the list
 							for s in selectedSequences do
 							(
-								--Try export accessory
-								local tea = (s.exportAccessory and ro_s.exportaccessory.state)
+								--Try export accessory expression
+								local TEA = (s.exportAccessory and ro_s.UI_ExportAccessory.state)
 
-								ExportProcess collection:copies exportType:2 astart:s.range_start aend:s.range_end asequencename:s.sequenceName aexport:tea overrideredraw:true delayPrint:true
+								ExportProcess collection:copies exportType:2 astart:s.range_start aend:s.range_end asequencename:s.sequenceName aexport:TEA batch:true
 							)
 
-							EnableSceneRedraw()
+							ExportTimerEnd = timeStamp()
+
+							append TMP_ExportResults (">> Exported file(s) in :: " + (((ExportTimerEnd - ExportTimerStart) / 1000.0) as string) + "s")
 
 							--Print export results
-							for result in exportResults do ( print(result) )
+							for result in TMP_ExportResults do ( print(result) )
 						)
 						else
 						(
-							ExportProcess collection:copies exportType:2 aexport:ro_s.exportaccessory.state
+							printc("No sequences selected, falling back to singular range export!")
+							--If sequence list isn't used, we fall back to just using the set ranges
+
+							ExportProcess collection:copies exportType:2 aexport:ro_s.UI_ExportAccessory.state batch:false
 						)
+
+						--Re-enable viewports after whole operation is done
+						EnableSceneRedraw()
 
 						--Clean up copied nodes from export process after operation is done
 						for o in copies do ( if (isValidNode o) do ( delete o ) )
@@ -1268,7 +1341,7 @@ rollout pipeboy "PipeBoy"
 						--Try to clean up copied nodes from export process
 						for o in copies do ( if (isValidNode o) do ( delete o ) )
 
-						enablesceneredraw() --re-enable scene redrawing if error occurs
+						EnableSceneRedraw() --re-enable scene redrawing if error occurs
 
 						--Wait with throwing error message until cleanup is performed
 						throw()
@@ -1283,7 +1356,7 @@ rollout pipeboy "PipeBoy"
 			)
 		)
 
-		on OpenSourceLocation pressed do
+		on UI_OpenSourceLocation pressed do
 		(
 			if (TryExportCriteria() == false) do (return())
 
@@ -1296,7 +1369,7 @@ rollout pipeboy "PipeBoy"
 			DOSCommand cmnd
 		)
 
-		on OpenExportLocation pressed do
+		on UI_OpenExportLocation pressed do
 		(
 			if (TryExportCriteria() == false) do (return())
 
@@ -1311,25 +1384,24 @@ rollout pipeboy "PipeBoy"
 
 	rollout ui_rolloutgroup_sequence "ANIMATION"
     (
-
     	--Sequence settings
 		group ""
 		(
-			button editsequences "Edit Sequences" pos:[12, 22]
+			button UI_EditSequences "Edit Sequences" pos:[12, 22] tooltip:"Opens <EDIT SEQUENCES> window"
 
-			checkbox exportsequences "Use list" pos:[115, 22]
-			checkbox exportaccessory "Accessory" pos:[115, 40]
+			checkbox UI_ExportSequences "Use list" pos:[115, 22] tooltip:"Toggles animation export process to either export every selected sequence from sequence list, or only the selected frame range"
+			checkbox UI_ExportAccessory "Accessory" pos:[115, 40] tooltip:"Toggles animation export process to include the selected accessory rig"
 
-			multilistbox list_sequences "Sequence list" items:#("-----") pos:[12, 48] width:200 height:6
+			multilistbox UI_List_Sequences "Sequence list" items:#("-----") pos:[12, 48] width:200 height:6
 
-			dropdownlist rigCharacter "Character" pos:[14, 152] width:90 tooltip:"Prefix used for character skeleton (overrides pick button if set)"
-			dropdownlist rigAccessory "Accessory" pos:[120, 152] width:90 tooltip:"Prefix used for accessory skeleton (overrides pick button if set)"
+			dropdownlist UI_Rig_Character "Character" pos:[14, 152] width:90 tooltip:"Prefix used for character skeleton (overrides pick button if set)"
+			dropdownlist UI_Rig_Accessory "Accessory" pos:[120, 152] width:90 tooltip:"Prefix used for accessory skeleton (overrides pick button if set)"
 
-			pickbutton pickCharacter "Undefined" pos:[14, 198] width:90 height:20 tooltip:"Direct node reference for character skeleton root bone (is overridden if a prefix is set)"
-			pickbutton pickAccessory "Undefined" pos:[120, 198] width:90 height:20 tooltip:"Direct node reference for accessory skeleton root bone (is overridden if a prefix is set)"
+			pickbutton UI_PickCharacter "Undefined" pos:[14, 198] width:90 height:20 tooltip:"Direct node reference for character skeleton root bone (is overridden if a prefix is set)"
+			pickbutton UI_PickAccessory "Undefined" pos:[120, 198] width:90 height:20 tooltip:"Direct node reference for accessory skeleton root bone (is overridden if a prefix is set)"
 		)
 
-		on editsequences pressed do
+		on UI_EditSequences pressed do
 		(
 			--Open floater from external file
 			try(destroydialog PipeBoy_AnimSetup)catch()
@@ -1338,61 +1410,77 @@ rollout pipeboy "PipeBoy"
 			cbf_updateui()
 		)
 
-		on list_sequences selected i do
+		on UI_List_Sequences selected i do
 		(
 			cbf_updateui()
 		)
 
-		on pickCharacter picked obj do
+		on UI_ExportSequences changed newState do
 		(
-			if (obj != undefined) do
+			if (PipeBoyInitialized) do ( GP_UseSequenceList = newState )
+		)
+
+		on UI_ExportAccessory changed newState do
+		(
+			if (PipeBoyInitialized) do ( GP_ExportAccessory = newState )
+		)
+
+		on UI_Rig_Character selected newChar do
+		(
+			if (PipeBoyInitialized == true) do
 			(
-				pickCharacter.text = obj.name
-				pickCharacter.object = obj
+				GP_Character = newChar
 			)
 		)
 
-		on pickAccessory picked obj do
+		on UI_Rig_Accessory selected newAccessory do
 		(
-			if (obj != undefined) do
+			if (PipeBoyInitialized == true) do
 			(
-				pickAccessory.text = obj.name
-				pickAccessory.object = obj
+				GP_Accessory = newAccessory
 			)
 		)
 
-		on pickCharacter rightclick do
+		on UI_PickCharacter picked obj do
 		(
-			pickCharacter.text = "Undefined"
-			pickCharacter.object = undefined
+			if (obj != undefined) do
+			(
+				UI_PickCharacter.text = obj.name
+				UI_PickCharacter.object = obj
+			)
 		)
 
-		on pickAccessory rightclick do
+		on UI_PickAccessory picked obj do
 		(
-			pickAccessory.text = "Undefined"
-			pickAccessory.object = undefined
+			if (obj != undefined) do
+			(
+				UI_PickAccessory.text = obj.name
+				UI_PickAccessory.object = obj
+			)
 		)
 
-		on exportsequences changed newState do
+		on UI_PickCharacter rightclick do
 		(
-			if (allowStorePersistance) do ( p_useSequenceList = newState )
+			UI_PickCharacter.text = "Undefined"
+			UI_PickCharacter.object = undefined
 		)
 
-		on exportaccessory changed newState do
+		on UI_PickAccessory rightclick do
 		(
-			if (allowStorePersistance) do ( p_exportAccessory = newState )
+			UI_PickAccessory.text = "Undefined"
+			UI_PickAccessory.object = undefined
 		)
 
 		on ui_rolloutgroup_sequence rolledup newState do
 		(
 			ResizeFloaterWindow ui_rolloutgroup_sequence
-			if (allowStorePersistance) do ( ro_open_s = newState )
+			if (PipeBoyInitialized) do ( ro_open_s = newState )
 		)
 
 		on ui_rolloutgroup_sequence open do
 		(
-			exportsequences.state = p_useSequenceList
-			exportaccessory.state = p_exportAccessory
+			UI_ExportSequences.state = GP_UseSequenceList
+			UI_ExportAccessory.state = GP_ExportAccessory
 
 			cbf_updateui()
 		)
@@ -1402,50 +1490,50 @@ rollout pipeboy "PipeBoy"
     (
 		group "Asset Settings"
 		(
-			dropdownlist istype "Asset Type" items:#("Geometry", "Animation") width:85
+			dropdownlist UI_AssetType "Asset Type" items:#("Geometry", "Animation") width:85 tooltip:"What type of asset we'll be exporting"
 
-			checkbox meshgrouper "Mesh grouper" checked:false
-			--checkbox generatelods "Generate lods" checked:false
-			--spinner lodsamount "LODs" range:[1,6,2] type:#integer width:50 pos:[125, 92]
+			checkbox UI_MeshGrouper "Mesh grouper" checked:false tooltip:"Use mesh grouper functionality upon export"
+			--checkbox UI_GenerateLODs "Generate lods" checked:false
+			--spinner UI_GenerateLODs_Amount "LODs" range:[1,6,2] type:#integer width:50 pos:[125, 92]
 
-			checkbox separateMeshFiles "Separate mesh files" checked:false tooltip:"Make each separated mesh node in scene get exported with its own file (Filename based on mesh name!)"
-			edittext fileextension "File name extension"
+			checkbox UI_SeparateMeshFiles "Separate mesh files" checked:false tooltip:"Make each separated mesh node in scene get exported to its own file 'NOTE: Filename is based on mesh name!'"
+			edittext UI_FileExtension "File name extension" tooltip:"Add this string after exported file names - eg: if sequence name is 'a_animation_01' and this string is '_test' then filename results to 'a_animation_01_test'"
 		)
 
-		on istype selected newtype do
+		on UI_AssetType selected newtype do
 		(
-			AssetTypeSelection = newtype
+			GP_AssetTypeSelection = newtype
 		)
 
-		on meshgrouper changed newState do
+		on UI_MeshGrouper changed newState do
 		(
-			if (allowStorePersistance) do ( p_meshGrouper = newState )
+			if (PipeBoyInitialized) do ( GP_MeshGrouper = newState )
 		)
 
 		--DISABLED
-		--on generatelods changed newState do
+		--on UI_GenerateLODs changed newState do
 		--(
-		--	if (allowStorePersistance) do ( p_generateLods = newState )
+		--	if (PipeBoyInitialized) do ( GP_GenerateLODs = newState )
 		--)
 
-		on separateMeshFiles changed newState do
+		on UI_SeparateMeshFiles changed newState do
 		(
-			if (allowStorePersistance) do ( p_separateMeshFiles = newState )
+			if (PipeBoyInitialized) do ( GP_SeparateMeshFiles = newState )
 		)
 
 		on ui_rolloutgroup_asset rolledup newState do
 		(
 			ResizeFloaterWindow ui_rolloutgroup_asset
-			if (allowStorePersistance) do ( ro_open_a = newState )
+			if (PipeBoyInitialized) do ( ro_open_a = newState )
 		)
 
 		on ui_rolloutgroup_asset open do
 		(
-			istype.selection = AssetTypeSelection
+			UI_AssetType.selection = GP_AssetTypeSelection
 
-			meshgrouper.state = p_meshGrouper
-			--generatelods.state = p_generateLods--DISABLED
-			separateMeshFiles.state = p_separateMeshFiles
+			UI_MeshGrouper.state = GP_MeshGrouper
+			--UI_GenerateLODs.state = GP_GenerateLODs--DISABLED
+			UI_SeparateMeshFiles.state = GP_SeparateMeshFiles
 		)
     )
 
@@ -1453,14 +1541,14 @@ rollout pipeboy "PipeBoy"
     (
 		group "Project Settings"
 		(
-			dropdownlist currentproject "Project" width:125
-			button editprojectsettings "Edit" width:65 pos:[144,44]
+			dropdownlist UI_CurrentProject "Project" width:125 tooltip:"Currently selected project"
+			button UI_EditProjectSettings "Edit" width:65 pos:[144,44] tooltip:"Opens project settings window"
 		)
 
 		group ""
 		(
-			button refresh "Refresh" width:80 align:#center
-			checkbox printmessages "Debug" checked:printtoconsole pos:[162,100]
+			button UI_Refresh "Refresh" width:80 align:#center tooltip:"Forces UI to refresh"
+			checkbox UI_PrintMessages "Debug" checked:GP_PrintToConsole pos:[162,100] tooltip:"Enables printing of a bunch of debug messages in listener"
 		)
 
 		on ui_rolloutgroup_project open do
@@ -1471,62 +1559,80 @@ rollout pipeboy "PipeBoy"
 		on ui_rolloutgroup_project rolledup newState do
 		(
 			ResizeFloaterWindow ui_rolloutgroup_project
-			if (allowStorePersistance) do ( ro_open_p = newState )
+			if (PipeBoyInitialized) do ( ro_open_p = newState )
 		)
 
-		on editprojectsettings pressed do
+		on UI_EditProjectSettings pressed do
 		(
-			filein pipeboysettings
+			--Open floater from external file
+			try(destroydialog PipeBoy_ProjectSettings)catch()
+			createdialog PipeBoy_ProjectSettings style:#(#style_toolwindow, #style_sysmenu)
+
+			PipeBoy_ProjectSettings.TrySetNewProject(GP_CurrentProjectSelected)
+
+			try
+			(
+				--Try setting the project setting window's project to currently selected one in main UI
+				PipeBoy_ProjectSettings.TrySetNewProject(GP_CurrentProjectSelected)
+			)catch()
 		)
 
-		on currentproject selected newproject do
+		on UI_CurrentProject selected newproject do
 		(
 			if (newproject != undefined) then
 			(
-				currentprojectselected = currentproject.selection
-				loadvariables()
+				GP_CurrentProjectSelected = UI_CurrentProject.selection
+				LoadProjectSettings()
 			)
 			else
 			(
-				messagebox "project seems to be missing!" title:"missing project!"
-				currentprojectselected = 1
+				MessageBox "Project seems to be missing!" title:"Missing project!"
+				GP_CurrentProjectSelected = 1
 			)
+
+			cbf_updateui()
+
+			UI_CurrentProject.items = TMP_ProjectArray
 		)
 
-		on refresh pressed do
+		on UI_Refresh pressed do
 		(
 			cbf_updateui()
 
-			currentproject.items = projectarray
+			UI_CurrentProject.items = TMP_ProjectArray
 		)
 
-		on printmessages changed newstate do
+		on UI_PrintMessages changed newstate do
 		(
-			printtoconsole = newstate
+			GP_PrintToConsole = newstate
 		)
     )
 
     --Init base rollout
-	on pipeboy open do
+	on PipeBoy open do
 	(
-		allowStorePersistance = false
+		PipeBoyInitialized = false
 
 		--fix initialized persistent variables
-		if (currentprojectselected == undefined) do (currentprojectselected = 1)
-		if (AssetTypeSelection == undefined) do (AssetTypeSelection = 1)
-		if (printtoconsole == undefined) do (printtoconsole = false)
-		if (p_meshGrouper == undefined) do (p_meshGrouper = false)
-		--if (p_generateLods == undefined) do (p_generateLods = false)--DISABLED
-		if (p_separateMeshFiles == undefined) do (p_separateMeshFiles = false)
-		if (p_useSequenceList == undefined) do (p_useSequenceList = false)
-		if (p_exportAccessory == undefined) do (p_exportAccessory = false)
+		if (GP_CurrentProjectSelected == undefined) do (GP_CurrentProjectSelected = 1)
+		if (GP_AssetTypeSelection == undefined) do (GP_AssetTypeSelection = 1)
+		if (GP_PrintToConsole == undefined) do (GP_PrintToConsole = false)
+		if (GP_MeshGrouper == undefined) do (GP_MeshGrouper = false)
+		--if (GP_GenerateLODs == undefined) do (GP_GenerateLODs = false)--DISABLED
+		if (GP_SeparateMeshFiles == undefined) do (GP_SeparateMeshFiles = false)
+		if (GP_UseSequenceList == undefined) do (GP_UseSequenceList = false)
+		if (GP_ExportAccessory == undefined) do (GP_ExportAccessory = false)
+
+		if (GP_Character == undefined or GP_Character == 0) do (GP_Character = 1)
+		if (GP_Accessory == undefined or GP_Accessory == 0) do (GP_Accessory = 1)
+
 		if (ro_open_m == undefined) do (ro_open_m = true)
 		if (ro_open_s == undefined) do (ro_open_s = false)
 		if (ro_open_a == undefined) do (ro_open_a = false)
 		if (ro_open_p == undefined) do (ro_open_p = false)
 
 		--Force print
-		--printtoconsole = true
+		--GP_PrintToConsole = true
 
 		--Add sub rollouts
 		addsubrollout ui_base ui_rolloutgroup_main
@@ -1535,11 +1641,11 @@ rollout pipeboy "PipeBoy"
 		addsubrollout ui_base ui_rolloutgroup_project
 
 		--Cache global references to rollouts
-		refreshrollouts()
+		UI_RefreshRollouts()
 
 		--Set main rollout heights
-		pipeboy.height = PipeBoy_FloaterWindowHeight
-		pipeboySub.height = pipeboy.height --PipeBoy_FloaterWindowHeight
+		PipeBoy.height = PipeBoy_FloaterWindowHeight
+		PipeBoySub.height = PipeBoy.height --PipeBoy_FloaterWindowHeight
 
 		--Open or close rollouts from memory?
 		if ((ro_m != undefined) and (ro_s != undefined) and (ro_a != undefined) and (ro_p != undefined)) do
@@ -1560,42 +1666,48 @@ rollout pipeboy "PipeBoy"
 			)
 		)
 
-		--Initialize script references
-		pbs = (pathconfig.getdir #userscripts) + ( "\\maxboy\\pipeboy_settings.ini")
-		pipeboysettings = (pathconfig.getdir #userscripts) + ( "\\maxboy\\pipeboy_projectsettings.ms")
-		pipeboyanimsetup = (pathconfig.getdir #userscripts) + ( "\\maxboy\\pipeboy_animsetup.ms")
-
 		--Setup interface data
-		loadvariables()
+		LoadProjectSettings()
 
 		--Try and load sequences
-		loadsequences()
+		LoadSequences()
 
 		--Set current selected project from scene memory
-		ro_p.currentproject.items = projectarray
-		ro_p.currentproject.selection = currentprojectselected
+		ro_p.UI_CurrentProject.items = TMP_ProjectArray
+		ro_p.UI_CurrentProject.selection = GP_CurrentProjectSelected
+
+		--Set debug print UI to globally persistent variable
+		ro_p.UI_PrintMessages.checked = GP_PrintToConsole
 
 		--Set asset type selection from scene memory
-		ro_a.istype.selection = AssetTypeSelection
+		ro_a.UI_AssetType.selection = GP_AssetTypeSelection
 
-		allowStorePersistance = true
+		--Set export rigs from scene memory
+		ro_s.UI_Rig_Character.selection = GP_Character
+		ro_s.UI_Rig_Accessory.selection = GP_Accessory
 
-		--Force a UI update
+		--print("Char: " + GP_Character as string)
+		--print("Acc: " + GP_Accessory as string)
+
+		--Allow persistent vars to be set and UI updates to happen
+		PipeBoyInitialized = true
+
+		--Force an initial UI update
 		cbf_updateui()
 
-		--Add callbacks for opening a new file while pipeboy is open to update relevant menu items
+		--Add callbacks for opening a new file while PipeBoy is open to update relevant menu items
 		callbacks.removescripts #filepostopen  id:#cb_updateui
 		callbacks.addscript #filepostopen "cbf_updateui_fn()" id:#cb_updateui
 
 		--Just to be safe, enable scene redraw
-		enablesceneredraw()
+		EnableSceneRedraw()
 		renderscenedialog.update()
 
 		print("Hey, it's PipeBoy!")
 	)
 
 	--Destruct callbacks when closed
-	on pipeboy close do
+	on PipeBoy close do
 	(
 		callbacks.removescripts #filepostopen  id:#cb_updateui
 	)
@@ -1603,5 +1715,5 @@ rollout pipeboy "PipeBoy"
 )
 
 --Launch floater AFTER we've figured out rollout heights
-try(destroydialog pipeboy)catch()
-createdialog pipeboy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,150] height:500 width:235
+try(destroydialog PipeBoy)catch()
+createdialog PipeBoy style:#(#style_toolwindow, #style_sysmenu) pos:[1100,150] height:500 width:235

@@ -3,10 +3,10 @@
 --Include function lib
 include "$userscripts\maxboy\maxboy_functions.ms"
 
-rollout Baker "AnimBaker v10.1" width:200 height: 240 (
+rollout Baker "AnimBaker v11" width:200 height: 240 (
 
-	global transformList = #();
-	global nodeList = #();
+	global transformList = #()
+	global nodeList = #()
 
 	group "Ranges"
 	(

@@ -12,7 +12,6 @@ persistent global path_settings, path_project, selectedProject
 --Rollouts
 global PipeBoy_AnimSetup
 global rlt_addSequence
-global PBS
 global UpdateUI
 global filePath
 global SequenceArray = #()
@@ -39,7 +38,7 @@ struct sequence
 )
 
 --Save to .boi file
-fn SaveSettings  =
+fn SaveSequenceSettings  =
 (
 	gc()
 
@@ -85,13 +84,17 @@ fn SaveSettings  =
 )
 
 --Load from .boi file
-fn LoadSettings =
+fn LoadAnimationSequences =
 (
 	gc()
 
 	if (doesFileExist filePath == false) do
 	(
-		print("No file to load from @ " + filePath as string)
+		print("No file to load from @ " + ((ConvertPathToString filePath) as string))
+
+		--Clear list so we don't get confused by last filled list
+		free SequenceArray
+
 		return()
 	)
 
@@ -150,7 +153,7 @@ fn LoadSettings =
 
 				append SequenceArray loadSequence
 
-				--print("Loaded sequence >> " + loadSequence.s_Name as string)
+				--print("Loaded sequence >> " + loadSequence.sequenceName as string)
 			)
 		) while (searchResult != undefined)
 
@@ -178,23 +181,23 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:355
 
 	group ""
 	(
-		combobox ui_sequences "Sequences" height:12
+		combobox ui_Sequences "Sequences" height:12
 
-		button ui_button_addSequence "Add" pos:[70, baseHeight]
-		button ui_button_removeSequence "Remove" pos:[110, baseHeight]
-		button ui_button_saveSettings "Save" pos:[170, baseHeight]
+		button ui_Button_AddSequence "Add" pos:[70, baseHeight]
+		button ui_Button_RemoveSequence "Remove" pos:[110, baseHeight]
+		button ui_Button_SaveSettings "Save" pos:[170, baseHeight]
 	)
 
 	group "Sequence Settings"
 	(
-		spinner ui_range_start "Start : " pos:[spin_x, spin_y] width:64 height:16 range:[-10000, 10000, normTime 0] type:#integer
-		spinner ui_range_end "End :" pos:[spin_x, spin_y + spin_o] width:64 height:16 range:[-10000, 10000, normTime 1] type:#integer
+		spinner ui_Range_Start "Start :" pos:[spin_x, spin_y] width:64 height:16 range:[-10000, 10000, normTime 0] type:#integer
+		spinner ui_Range_End "End :" pos:[spin_x, spin_y + spin_o] width:64 height:16 range:[-10000, 10000, normTime 1] type:#integer
 
-		button GetStart "<" pos:[spin_x + spin_or, spin_y] width:20 height:16 toolTip:"Set start frame to current frame"
-		button GetEnd   "<" pos:[spin_x + spin_or, spin_y + spin_o] width:20 height:16 toolTip:"Set end frame to current frame"
+		button ui_GetStart "<" pos:[spin_x + spin_or, spin_y] width:20 height:16 toolTip:"Set start frame to current frame"
+		button ui_GetEnd   "<" pos:[spin_x + spin_or, spin_y + spin_o] width:20 height:16 toolTip:"Set end frame to current frame"
 
-		button GetStartRange "<<" pos:[spin_x + spin_or + 24, spin_y] width:20 height:16 toolTip:"Set start frame to current range start frame"
-		button GetEndRange   "<<" pos:[spin_x + spin_or + 24, spin_y + spin_o] width:20 height:16 toolTip:"Set start frame to current range end frame"
+		button ui_GetStartRange "<<" pos:[spin_x + spin_or + 24, spin_y] width:20 height:16 toolTip:"Set start frame to current range start frame"
+		button ui_GetEndRange   "<<" pos:[spin_x + spin_or + 24, spin_y + spin_o] width:20 height:16 toolTip:"Set start frame to current range end frame"
 
 		checkbox ui_ExportAccessory "Export Accessory" pos:[16, spin_y + spin_o + 24] tooltip:"Export accessory animation for this sequence"
 
@@ -211,7 +214,7 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:355
 		if (SequenceArray.count >= 1) then
 		(
 			local SequenceNames = SequenceArrayToNames()
-			ui_sequences.items = SequenceNames
+			ui_Sequences.items = SequenceNames
 		)
 		else
 		(
@@ -219,15 +222,15 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:355
 
 			SequenceArray = #(newSequence)
 
-			ui_sequences.items = #(newSequence.sequenceName as string)
+			ui_Sequences.items = #(newSequence.sequenceName as string)
 		)
 
 		--Update relative parameters
-		if (ui_sequences.selection != 0 AND ui_sequences.selection <= SequenceArray.count) do
+		if (ui_Sequences.selection != 0 AND ui_Sequences.selection <= SequenceArray.count) do
 		(
-			ui_ExportAccessory.state = SequenceArray[ui_sequences.selection].exportAccessory
-			ui_range_start.value = SequenceArray[ui_sequences.selection].range_start
-			ui_range_end.value = SequenceArray[ui_sequences.selection].range_end
+			ui_ExportAccessory.state = SequenceArray[ui_Sequences.selection].exportAccessory
+			ui_Range_Start.value = SequenceArray[ui_Sequences.selection].range_start
+			ui_Range_End.value = SequenceArray[ui_Sequences.selection].range_end
 		)
 
 		--Try updating UI in PipeBoy
@@ -239,25 +242,25 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:355
 	(
 		--print ("Doing opening actions!")
 		local scrName = ("PipeBoy_AnimSetup")
-		local srcLocation = getScriptLocation (getThisScriptFilename() as string) scrName
+
+		--local srcLocation = GetScriptLocation (getThisScriptFilename() as string) scrName
+		local srcLocation = (GetDir #userScripts + "\\MaxBoy\\AnimSetup\\")
 
 		path_settings = srcLocation
 
 		--Create animsetup folder if it doesn't exist
-		if (doesFileExist (srcLocation + "\\AnimSetup\\") == false) do
-		(
-			makeDir (srcLocation + "\\AnimSetup\\")
-		)
+		if (doesFileExist (srcLocation) == false) do (makeDir (srcLocation))
 
 		if (maxFileName != "") then
 		(
-			local filteredName = replace (maxFileName as string) (maxFileName.count - 3) 4 ""
+			--local filteredName = replace (maxFileName as string) (maxFileName.count - 3) 4 ""
+			local filteredName = (filterString (maxFileName as string) ".")[1]
 
-			local relativePath = (srcLocation + "\\AnimSetup\\" + filteredName + ".boi")
-			filePath = convertToPath relativePath
+			local relativePath = (srcLocation + filteredName + ".boi")
+			filePath = ConvertToPath relativePath
 
 			--Load in data
-			LoadSettings()
+			LoadAnimationSequences()
 		)
 		else
 		(
@@ -272,114 +275,114 @@ rollout PipeBoy_AnimSetup "Animation Setup" width:225 height:355
 		TryUpdateUI()
 	)
 
-	on ui_button_addSequence pressed do
+	on ui_Button_AddSequence pressed do
 	(
 		createDialog rlt_addSequence
 	)
 
-	on ui_button_removeSequence pressed do
+	on ui_Button_RemoveSequence pressed do
 	(
 		if (queryBox "Remove sequence?" title:"Remove" == true) do
 		(
 			--Delete in local array
-			deleteItem SequenceArray ui_sequences.selection
+			deleteItem SequenceArray ui_Sequences.selection
 
 			--Store removal change
-			SaveSettings()
+			SaveSequenceSettings()
 
 			--Update UI
 			TryUpdateUI()
 		)
 	)
 
-	on ui_button_saveSettings pressed do
+	on ui_Button_SaveSettings pressed do
 	(
 		--Save settings to ".ini" file
-		SaveSettings()
+		SaveSequenceSettings()
 	)
 
-	on ui_sequences entered newName do
+	on ui_Sequences entered newName do
 	(
-		ui_sequences.selected = newName
-		SequenceArray[ui_sequences.selection].sequenceName = newName
+		ui_Sequences.selected = newName
+		SequenceArray[ui_Sequences.selection].sequenceName = newName
 
-		SaveSettings()
+		SaveSequenceSettings()
 	)
 
-	on ui_sequences selected newSelection do
+	on ui_Sequences selected newSelection do
 	(
 		TryUpdateUI()
 	)
 
-	on ui_range_start changed val do
+	on ui_Range_Start changed val do
 	(
-		SequenceArray[ui_sequences.selection].range_start = ui_range_start.value
+		SequenceArray[ui_Sequences.selection].range_start = ui_Range_Start.value
 
-		SaveSettings()
+		SaveSequenceSettings()
 
 		TryUpdateUI()
 	)
 
-	on ui_range_end changed val do
+	on ui_Range_End changed val do
 	(
-		SequenceArray[ui_sequences.selection].range_end = ui_range_end.value
+		SequenceArray[ui_Sequences.selection].range_end = ui_Range_End.value
 
-		SaveSettings()
+		SaveSequenceSettings()
 
 		TryUpdateUI()
 	)
 
 	on ui_ExportAccessory changed nState do
 	(
-		SequenceArray[ui_sequences.selection].exportAccessory = nState
+		SequenceArray[ui_Sequences.selection].exportAccessory = nState
 
-		SaveSettings()
+		SaveSequenceSettings()
 
 		TryUpdateUI()
 	)
 
 
 	--[Actions for range UI]--
-	on GetStart pressed do
+	on ui_GetStart pressed do
 	(
-		ui_range_start.value = sliderTime
-		SequenceArray[ui_sequences.selection].range_start = sliderTime
+		ui_Range_Start.value = sliderTime
+		SequenceArray[ui_Sequences.selection].range_start = sliderTime
 
-		SaveSettings()
+		SaveSequenceSettings()
 
 		TryUpdateUI()
 	)
 
-	on GetStartRange pressed do
+	on ui_GetStartRange pressed do
 	(
 		local f = ( normTime 0 as integer ) / ticksperframe
 
-		ui_range_start.value = f
-		SequenceArray[ui_sequences.selection].range_start = f
+		ui_Range_Start.value = f
+		SequenceArray[ui_Sequences.selection].range_start = f
 
-		SaveSettings()
+		SaveSequenceSettings()
 
 		TryUpdateUI()
 	)
 
-	on GetEnd pressed do
+	on ui_GetEnd pressed do
 	(
-		ui_range_end.value = ( sliderTime )
-		SequenceArray[ui_sequences.selection].range_end = sliderTime
+		ui_Range_End.value = ( sliderTime )
+		SequenceArray[ui_Sequences.selection].range_end = sliderTime
 
-		SaveSettings()
+		SaveSequenceSettings()
 
 		TryUpdateUI()
 	)
 
-	on GetEndRange pressed do
+	on ui_GetEndRange pressed do
 	(
 		local f = ( normTime 1 as integer ) / ticksperframe
 
-		ui_range_end.value = f
-		SequenceArray[ui_sequences.selection].range_end = f
+		ui_Range_End.value = f
+		SequenceArray[ui_Sequences.selection].range_end = f
 
-		SaveSettings()
+		SaveSequenceSettings()
 
 		TryUpdateUI()
 	)
@@ -411,10 +414,10 @@ rollout rlt_addSequence "Add Sequence" width:360 height:60
 
 			local SequenceNames = SequenceArrayToNames()
 
-			PipeBoy_AnimSetup.ui_sequences.items = SequenceNames
-			PipeBoy_AnimSetup.ui_sequences.selection = SequenceArray.count
+			PipeBoy_AnimSetup.ui_Sequences.items = SequenceNames
+			PipeBoy_AnimSetup.ui_Sequences.selection = SequenceArray.count
 
-			SaveSettings()
+			SaveSequenceSettings()
 
 			destroyDialog rlt_addSequence
 		)

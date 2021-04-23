@@ -1,18 +1,22 @@
 
---[Generic functions]
+--[ Generic types ]
+global WorldAxis = #("X-Positive", "Y-Positive", "Z-Positive", "X-Negative", "Y-Negative", "Z-Negative")
+
+--[ Generic functions ]
 
 --Debug print to console
 fn printc tString =
 (
-	if (PrintToConsole == undefined) do (return())
+	if (GP_PrintToConsole == undefined) do (return())
 	--Print as string to print arrays and other things too
 	try
 	(
-		if (PrintToConsole == true) do (print(tString))
+		if (GP_PrintToConsole == true) do (print(tString))
 	)catch(print("Print is goofed"))
 	--if (s_print == true) do (print(tString as string))
 )
 
+--Checks if an array is valid
 fn validArray tArray =
 (
 	local x = false
@@ -51,6 +55,7 @@ fn validArray tArray =
 	)
 )
 
+--Walks up a hierarchy from provided node until no parent of current parent is found, then returns that node
 fn RootParent tNode =
 (
 	local tParent = tNode.parent
@@ -72,52 +77,141 @@ fn RootParent tNode =
 	return tParent
 )
 
---Standardized copying function
-fn CopyNodes collection:(selection as array) type:#copy uniqueNames:false =
+--Returns string without last character attached
+fn RemoveLastChar str =
 (
-	if (classOf collection == Array) then
-	(
-		--Copies node(s)
-		maxOps.cloneNodes (collection as array) cloneType:type newNodes:&tCopies #nodialog
-	)
-	else
-	(
-		--Copies node
-		print("CopyNodes :: Undefined collection")
-		return(undefined)
-	)
+	if (classOf str != string) do ( print("RemoveLastChar :: Supplied variable isn't of type string!"); return("") )
 
-	local aCopies = tCopies as array
+	local strCopy = (copy str)
+	return (substring strCopy 1 (strCopy.count - 1) )
+)
 
-	--Rename copied objects names to original's names
-	if (uniqueNames == false) do
+--Match pattern with multiple patterns (matchAll is used if we want it to pass all pattern checks)
+fn MatchPatternMultiple str:"" patterns:#("") matchAll:false &ind: =
+(
+	local currentIndex = 0
+
+	--Go through all patterns
+	for p in patterns do
 	(
-		for i = 1 to aCopies.count do
+		currentIndex += 1
+
+		--If we have a match, then
+		if (MatchPattern str pattern:p == true) then
 		(
-			aCopies[i].name = collection[i].name
+			--If we don't have to match all patterns, return on first match
+			if (matchAll == false) do
+			(
+				if (ind != unsupplied) do (ind = currentIndex)
+
+				return(p)
+			)
+		)
+		else
+		(
+			--If we HAVE to match all patterns, fail on first mismatch
+			return(false)
 		)
 	)
 
-	--Returns nodes in supplied container
-	return(aCopies)
+	--Fail if we haven't found a single match
+	return(false)
+)
+
+--Standardized copying function
+fn CopyNodes collection: type:#copy uniqueNames:false fOp:false =
+(
+	if (collection == unsupplied) do (collection = (selection as array))
+	if (collection == undefined) do ( print("CopyNodes :: Undefined collection") return(undefined) )
+	if (classOf collection != Array) do ( print("CopyNodes :: Collection is not of type array") return(undefined) )
+
+	local baseQueryResult = false
+
+	--Check if we want to stop or ignore incompatible node types
+	for i = 1 to collection.count do
+	(
+		local n = collection[i]
+
+		if (ClassOf n == CATBone) do
+		(
+			--Only question user if we haven't already asked
+			if (baseQueryResult == false) do
+			(
+				local queryResult = queryBox "Current selection contains a node(s) of uncompatible type for copy operation, do you wish to continue without them?" title:"Invalid node type"
+			)
+
+			if (queryResult == true or baseQueryResult == true) then
+			(
+				--Default the next answer to true if we're set on continuing the operation
+				baseQueryResult = true
+
+				--Remove invalid node from collection
+				deleteItem collection i
+			)
+			else
+			(
+				--Stop and enable redraw
+				EnableSceneRedraw()
+				print("Stopping copy operation...")
+				return()
+			)
+		)
+	)
+
+	--Safe wrap operation
+	try
+	(
+		--Speed up operation
+		if (fOp == true) do (DisableSceneRedraw())
+
+		--Copy nodes operation
+		maxOps.cloneNodes (collection as array) cloneType:type newNodes:&tCopies #nodialog
+
+		local aCopies = tCopies as array
+
+		--Rename copied objects names to original's names
+		if (uniqueNames == false) do
+		(
+			for i = 1 to aCopies.count do
+			(
+				if (aCopies[i] != undefined and collection[i] != undefined) do
+				(
+					aCopies[i].name = collection[i].name
+				)
+			)
+		)
+
+		if (fOp == true) do (EnableSceneRedraw())
+
+		--Returns nodes in supplied container
+		return(aCopies)
+	)
+	catch
+	(
+		EnableSceneRedraw()
+
+		print("CopyNodes :: Fatal error when attempting to copy nodes!")
+		throw()
+	)
 )
 
 --Selects all children under supplied node
-fn getChildren obj: =
+fn GetChildren obj: =
 (
-	max create mode
+	--max create mode
 
 	local selectedChildren = #()
 
-	with redraw off
+	DisableSceneRedraw()
+
+	try
 	(
 		if (obj == unsupplied) then
 		(
 			--Sort selection to hierarchy and get top parent
-			local sortArr = getCurrentSelection()
-			local indexArr = #()
+			local sortArr = GetCurrentSelection()
 
-			sortToHierarchy &sortArr &indexArr
+			SortToHierarchy &sortArr
 
 			if (isValidNode sortArr[1]) then
 			(
@@ -166,12 +260,20 @@ fn getChildren obj: =
 		)
 		while ( nn == true )
 
+		EnableSceneRedraw()
+
 		return selectedChildren
+	)
+	catch
+	(
+		EnableSceneRedraw()
+
+		print("GetChildren :: Something failed!")
 	)
 )
 
 --Cleans undefined entries out of an array
-fn cleanArray tArray =
+fn CleanArray tArray =
 (
 	local whileIndex = 1
 
@@ -192,7 +294,7 @@ fn cleanArray tArray =
 )
 
 --Sorts an hierarchy based on hierarchy depth
-fn sortToHierarchy &tArray &tIndex =
+fn SortToHierarchy &tArray =
 (
 	if (validArray(tArray) == false) do (return())
 
@@ -209,7 +311,7 @@ fn sortToHierarchy &tArray &tIndex =
 
 		while (searchParent == true) do
 		(
-			printc("While:STH_searchParent")
+			--printc("While:STH_searchParent")
 
 			if (p.parent != undefined) then
 			(
@@ -232,7 +334,7 @@ fn sortToHierarchy &tArray &tIndex =
 
 	while(si != -1) do
 	(
-		printc("While:STH_shuffleArray_Sort")
+		--printc("While:STH_shuffleArray_Sort")
 
 		si += 1
 
@@ -269,7 +371,7 @@ fn sortToHierarchy &tArray &tIndex =
 
 	while(shuffleArray[1][2] > 1) do
 	(
-		printc("While:STH_shuffleArray_SubtractToOne")
+		--printc("While:STH_shuffleArray_SubtractToOne")
 
 		for i = 1 to shuffleArray.count do
 		(
@@ -283,17 +385,18 @@ fn sortToHierarchy &tArray &tIndex =
 
 	for i = 1 to shuffleArray.count do
 	(
-		printc("Obj: " + (shuffleArray[i][1].name as string) + " i: " + (shuffleArray[i][2] as string))
+		--printc("Obj: " + (shuffleArray[i][1].name as string) + " i: " + (shuffleArray[i][2] as string))
 		oArray[i] = shuffleArray[i][1]
 		iArray[i] = shuffleArray[i][2]
 	)
 
+	--iArray is an array holding the depth of the node's position in tArray
+
 	tArray = oArray
-	tIndex = iArray
 )
 
 --Returns an array of index depths for a hierarchy at the same positions
-fn getHierarchyIndex tArray =
+fn GetHierarchyIndex tArray =
 (
 	if (tArray == undefined) do (return())
 
@@ -301,9 +404,8 @@ fn getHierarchyIndex tArray =
 
 	local wArray = tArray
 	local sortedArray = #()
-	local shitArray = #()
 
-	sortToHierarchy &sortedArray &shitArray
+	SortToHierarchy &sortedArray
 
 	local testArray = #()
 
@@ -336,7 +438,7 @@ fn getHierarchyIndex tArray =
 		)
 	)
 
-	local indexSorted = cleanArray(indexArray)
+	local indexSorted = CleanArray(indexArray)
 
 	while(indexSorted[1] != 1) do
 	(
@@ -351,10 +453,10 @@ fn getHierarchyIndex tArray =
 	return(indexSorted)
 )
 
-fn getHierarchy tArray =
+fn GetHierarchy tArray =
 (
 	local sortArray = #()
-	local indexArray = getHierarchyIndex(tArray)
+	local indexArray = GetHierarchyIndex(tArray)
 
 	for o in tArray do
 	(
@@ -390,10 +492,9 @@ fn ResetScales tArray =
 
 	if (validArray(tArray) == false) do (return())
 
-	local indexNull = #()
 	local scaleArray = tArray
 
-	sortToHierarchy &scaleArray &indexNull
+	SortToHierarchy &scaleArray
 
 	with redraw off
 	with undo off
@@ -425,7 +526,7 @@ fn ResetScales tArray =
 )
 
 -- Calculates the axis-aligned bounding box corners of an object
-fn getAABBoxPoints obj =
+fn GetAABBoxPoints obj =
 (
 	local aabbPoints = #()
 
@@ -449,7 +550,7 @@ fn getAABBoxPoints obj =
 )
 
 -- Calculates the oriented bounding box corners of an object
-fn getOBBoxPoints obj =
+fn GetOBBoxPoints obj =
 (
 	local obbPoints = #()
 
@@ -463,7 +564,7 @@ fn getOBBoxPoints obj =
 	obj.transform *= objectSpaceXform
 
 	-- Get the object-space axis-aligned bounding box corners
-	aabbPoints = getAABBoxPoints obj
+	aabbPoints = GetAABBoxPoints obj
 
 	-- Transform back to world-space
 	obj.transform = worldSpaceXform
@@ -477,9 +578,9 @@ fn getOBBoxPoints obj =
 )
 
 --Returns a relatively scaled factor to an object based on it's bounds
-fn getRelativeScale obj =
+fn GetRelativeScale obj =
 (
-	local AABB = getOBBoxPoints(obj)
+	local AABB = GetOBBoxPoints(obj)
 
 	--Get the hypotenuse of the bounding box
 	local pt1 = AABB[1]--Top right corner
@@ -497,7 +598,7 @@ fn getRelativeScale obj =
 )
 
 --Return a programmatic path from "regular" explorer path string
-fn convertToPath convertPath =
+fn ConvertToPath convertPath =
 (
 	local splitPath = filterString convertPath "\\"
 
@@ -514,8 +615,25 @@ fn convertToPath convertPath =
 	return filteredPath
 )
 
+fn ConvertPathToString convertPath =
+(
+	local splitPath = filterString convertPath "\\\\"
+
+	local filteredPath = ""
+
+	for i = 1 to splitPath.count do
+	(
+		filteredPath = (filteredPath + splitPath[i])
+
+		if (i != splitPath.count) do
+			filteredPath += ("\\")
+	)
+
+	return filteredPath
+)
+
 --Fetch script location
-fn getScriptLocation srcName scrName =
+fn GetScriptLocation srcName scrName =
 (
 	local ScriptName = (scrName + ".ms")
 	local FileName = srcName
@@ -525,8 +643,191 @@ fn getScriptLocation srcName scrName =
 	return FilteredPath
 )
 
+--Remove prefixes from nodes
+fn StripPrefixes &collection =
+(
+	if (collection == undefined) do (print("StripPrefixes :: Collection is undefined!") return())
+
+	for o in collection do
+	(
+		if (isValidNode o) do
+		(
+			if (matchPattern o.name pattern:("*:*")) do
+			(
+				local i = findString o.name ":"
+				o.name = replace o.name 1 i ""
+			)
+		)
+	)
+)
+
+--Remove prefixes from strings
+fn StripPrefixesInStrings &collection =
+(
+	if (collection == unsupplied) do (print("StripPrefixesInStrings :: Collection is unsupplied!") return())
+
+	local tempArray = #()
+
+	for o in collection do
+	(
+		local tempString = o
+
+		if (matchPattern tempString pattern:("*:*")) do
+		(
+			local i = findString tempString ":"
+			tempString = replace tempString 1 i ""
+		)
+
+		append tempArray tempString
+	)
+
+	collection = copy tempArray #nomap
+)
+
+--Bool wether or no the provided node has a prefix in its name
+fn HasPrefix n: =
+(
+	--Does name contain a prefix symbol?
+	return (matchPattern n.name pattern:("*:*"))
+)
+
+--Isolate and return prefix from node(s)
+fn GetPrefix sel: =
+(
+	local tArray = #()
+	local prefixes = #()
+
+	if (classOf(sel) == Array) then ( join tArray sel )	else ( append tArray sel )
+
+	for o in tArray do
+	(
+		--Only attempt prefix retrieval if a colon exists in name
+		if (HasPrefix n:o) do
+		(
+			local prefixIndex = findString o.name ":"
+
+			if (prefixIndex != undefined) do
+			(
+				append prefixes (substring (o.name) 1 prefixIndex)
+
+				/*
+				local tPre = ""
+				local tempName = copy o.name
+
+				for i = 1 to tempName.count do
+				(
+					local char = tempName[i]
+
+					tPre += char
+
+					if (char == ":") do
+					(
+						append prefixes tPre
+					)
+				)
+				*/
+			)
+		)
+	)
+
+	return prefixes
+)
+
+--Locate and select all objects in collection or scene by supplied prefix
+fn GetPrefixObjects pre:"" sel:$* allowMeshes:false =
+(
+	local searchSelection = sel
+	local nodeSelection = #()
+
+	printc("Found prefix: " + pre)
+
+	for o in searchSelection do
+	(
+		if (o != undefined) do
+		(
+			if (MatchPattern o.name pattern:(pre + "*")) do
+			(
+				if (superclassOf o == GeometryClass and allowMeshes == false) then
+				(
+					--Ignore meshes if not allowed
+				)
+				else
+				(
+					append nodeSelection o
+				)
+			)
+		)
+	)
+
+	return nodeSelection
+)
+
+--Find a prefixed node within selection
+fn FindPrefixedObject n: sel:$* ignoreCasing:false ex:false strippedArray:undefined =
+(
+	if ((n == undefined) or (n == unsupplied) or (n == "")) do
+	(
+		--print("FindPrefixedObject :: <N> parameter is null!")
+		return(undefined)
+	)
+
+	local originalArray = (sel as array)
+
+	if (strippedArray == undefined) do
+	(
+		strippedArray = #()
+		for o in originalArray do ( append strippedArray (copy (o.name)) )
+		StripPrefixesInStrings &strippedArray
+	)
+
+	for i = 1 to strippedArray.count do
+	(
+		local baseName = strippedArray[i]
+
+		if (MatchPattern baseName pattern:n ignoreCase:ignoreCasing exact:ex) do
+		(
+			--Return node from original array
+			return(originalArray[i])
+		)
+	)
+
+	print("FindPrefixedObject :: Failed finding of >> " + n + " in :: (printed array)")
+	--print(strippedArray)
+
+	return(undefined)
+)
+
+--Get all prefixes present in scene
+fn FindPrefixesInScene sel:$* =
+(
+	local prefixes = #()
+
+	for o in sel do
+	(
+		local n = o.name
+
+		if (n != undefined) do
+		(
+			if (matchPattern n pattern:("*:*")) do
+			(
+				local i = findString n ":"
+				local pre = (substring n 1 i)
+
+				local tryFindPrefix = findItem prefixes pre
+
+				if (tryFindPrefix == 0) do
+				(
+					append prefixes pre
+				)
+			)
+		)
+	)
+
+	return prefixes
+)
+
 --Locate accessory based on a couple parameters
-fn LocateAccessory sel:$* pre:"" returnChild:false =
+fn GetAccessory sel:$* pre:"" returnChild:false =
 (
 	local searchSelection = sel
 
@@ -589,32 +890,34 @@ fn LocateAccessory sel:$* pre:"" returnChild:false =
 	)
 )
 
---Locate and select all objects in collection or scene by supplied prefix
-fn getPrefixObjects pre:"" sel:$* allowMeshes:false =
+--Locate accessory based on a couple parameters
+fn GetRootNodes sel:$* rootNames:#("root", "b_root", "Root", "reference") =
 (
-	local searchSelection = sel
-	local nodeSelection = #()
+	local RootNodes = #()
 
-	for o in searchSelection do
+	--Setup stripped array for faster matching
+	local localStrippedArray = #()
+	for o in sel do ( append localStrippedArray (copy (o.name)) )
+	StripPrefixesInStrings &localStrippedArray
+
+	--Try and find based on naming
+	local intelSearch = rootNames
+
+	for str in intelSearch do
 	(
-		if (matchPattern o.name pattern:(pre + "*")) do
+		local searchResult = FindPrefixedObject n:str sel:sel strippedArray:localStrippedArray
+
+		if (searchResult != undefined) do
 		(
-			if (superclassOf o == GeometryClass and allowMeshes == false) then
-			(
-				--Ignore meshes if not allowed
-			)
-			else
-			(
-				append nodeSelection o
-			)
+			append RootNodes searchResult
 		)
 	)
 
-	return nodeSelection
+	return RootNodes
 )
 
 --Custom freeze transform function
-fn freezetransforms obj =
+fn FreezeTransforms obj =
 (
   local curobj = obj
 
@@ -655,7 +958,7 @@ fn freezetransforms obj =
 )
 
 --Get all meshes in supplied array
-fn filterformeshes &filterarray =
+fn FilterMeshes &filterarray =
 (
 	local tempfilterarray = #()
 
@@ -671,30 +974,10 @@ fn filterformeshes &filterarray =
 	return tempfilterarray
 )
 
---Remove prefixes from names
-fn stripPrefixes &collection =
-(
-	if (collection == undefined) do (print("StripPrefixes :: Collection is undefined!") return())
-
-	for o in collection do
-	(
-		if (isValidNode o) do
-		(
-			if (matchPattern o.name pattern:("*:*")) do
-			(
-				local i = findString o.name ":"
-
-				o.name = replace o.name 1 i ""
-			)
-		)
-	)
-)
-
 --Keybaker function
-fn BakeKeys collection:(selection as array) rs: re: method:1 keepController:false rev:false ref:undefined =
+fn BakeKeys collection:(selection as array) rs: re: method:1 keepController:false rev:false ref:undefined &DelayPrintArr: =
 (
 	--Modes: 1:Regular, 2:Reference, 3:Dummy, 4:Start)
-
 	if (method == 2 and ref == undefined) do
 	(
 		messageBox "No ref picked! Stopping bake." title:"Error!"
@@ -704,11 +987,19 @@ fn BakeKeys collection:(selection as array) rs: re: method:1 keepController:fals
 	if (rs == unsupplied) do (rs = (( normTime 0 as integer ) / ticksperframe))
 	if (re == unsupplied) do (re = (( normTime 1 as integer ) / ticksperframe))
 
+	local BakeCollection = collection --Make new array variable based on collection
+
 	with redraw off
 	(
+		--Take time on how long the process takes
+		BakeTimerStart = timeStamp()
+
 		try
 		(
-			disableSceneRedraw()
+			DisableSceneRedraw()
+
+			--Start off with sorting bake collection by hierarchy depth to avoid race issues
+			SortToHierarchy &BakeCollection
 
 			global tf = #()--Transform array
 
@@ -725,9 +1016,9 @@ fn BakeKeys collection:(selection as array) rs: re: method:1 keepController:fals
 				local ObjectData = #()
 				local ObjectKeys = #()
 
-				for i = 1 to collection.count do
+				for i = 1 to BakeCollection.count do
 				(
-					obj = collection[i]
+					obj = BakeCollection[i]
 
 					if obj != undefined then
 					(
@@ -775,7 +1066,7 @@ fn BakeKeys collection:(selection as array) rs: re: method:1 keepController:fals
 				local bakeDummies = #()--Store temp transform objects into array
 				animate off
 				--Make dummy objects to apply baked data to--
-				for obj in collection do
+				for obj in BakeCollection do
 				(
 					local bd = Point name:("baked_" + obj.name as string) size:10
 					bd.transform.controller = prs()
@@ -788,12 +1079,12 @@ fn BakeKeys collection:(selection as array) rs: re: method:1 keepController:fals
 				)
 
 				--Transfer temp array of new bake data dummies over to become selection array
-				collection = bakeDummies
+				BakeCollection = bakeDummies
 			)
 			else
 			(
 				--Fix object controllers--
-				for obj in collection do
+				for obj in BakeCollection do
 				(
 					local testResult = true
 					--Make sure you're checking a controller and not Matrix3
@@ -856,7 +1147,7 @@ fn BakeKeys collection:(selection as array) rs: re: method:1 keepController:fals
 				--Start from 0 and continue in the arrays from there
 				pastePass += 1
 
-				for i = 1 to collection.count do
+				for i = 1 to BakeCollection.count do
 				(
 					animate off
 
@@ -896,13 +1187,235 @@ fn BakeKeys collection:(selection as array) rs: re: method:1 keepController:fals
 		)
 		catch
 		(
-			enableSceneRedraw()
+			EnableSceneRedraw()
 			messagebox("BakeKeys :: Fatal error!") title:"Error!"
 
 			throw()
 		)
 
+		BakeTimerEnd = timeStamp()
+
+		local ProcessDurationMessage = ("Anim bake took :: " + (((BakeTimerEnd - BakeTimerStart) / 1000.0) as string) +  "s")
+
+		if (DelayPrintArr == unsupplied) then
+		(
+			print(ProcessDurationMessage)
+		)
+		else
+		(
+			append DelayPrintArr ProcessDurationMessage
+		)
+
 		--Re-enable redraw after finishing!
-		enableSceneRedraw()
+		EnableSceneRedraw()
+	)
+)
+
+--Copies transforms from one node hierarchy to another (Matched by name)
+fn TransferPose ParentA: undefined ParentB:undefined NameBased:true Depth:-1 =
+(
+    local b_ref = GetChildren obj:ParentA
+    local b_tar = GetChildren obj:ParentB
+
+    StripPrefixes b_ref
+	StripPrefixes b_tar
+
+	SortToHierarchy &b_ref
+	SortToHierarchy &b_tar
+
+	local DepthCount = 0
+
+	if (NameBased == true) then
+	(
+		--Apply by name
+	    for tn in b_tar do
+	    (
+	        for rn in b_ref do
+	        (
+	            if (MatchPattern tn.name pattern:("*" + rn.name as string + "*") ignoreCase: true) do
+	            (
+	                tn.transform = rn.transform
+	            )
+
+	            if (Depth != -1) do
+	            (
+	            	Depth += 1
+
+		            if (DepthCount >= Depth) do ( return() )
+	            )
+	        )
+	    )
+    )
+    else
+    (
+    	--Apply by hierarchy index
+		for i = 1 to b_tar.count do
+	    (
+	        for j = 1 to b_ref.count do
+	        (
+	        	local tn = b_tar[i]
+	        	local rn = b_ref[j]
+
+	            if (tn != undefined and rn != undefined) do
+	            (
+	                tn.transform = rn.transform
+	            )
+
+	            if (Depth != -1) do
+	            (
+	            	Depth += 1
+
+		            if (DepthCount >= Depth) do ( return() )
+	            )
+	        )
+	    )
+    )
+)
+
+--Adding position constraint to node(obj) with parent(p) as target
+fn AddPositionConstraint obj: p: weight:50 relative:false resetController:false =
+(
+	pc = Position_Constraint()
+	c = pc.constraints
+    c.appendTarget p weight
+
+    pc.relative = relative
+
+    if ((classOf(obj.position.controller) == position_list) and (resetController == false)) then
+    (
+    	obj.position.controller.available.controller = pc
+    	return(pc)
+    )
+    else
+    (
+    	obj.position.controller = position_list()
+    	obj.position.controller.available.controller = pc
+		obj.position.controller.setActive 2
+
+		return(obj.position.controller)
+    )
+)
+
+--Adding orientation constraint to node(obj) with parent(p) as target
+fn AddRotationConstraint obj: p: weight:50 relative:false resetController:false =
+(
+	oc = Orientation_Constraint()
+	c = oc.constraints
+    c.appendTarget p weight
+
+    oc.relative = relative
+
+    if ((classOf(obj.rotation.controller) == rotation_list) and (resetController == false)) then
+    (
+    	obj.rotation.controller.available.controller = oc
+    	return(oc)
+    )
+    else
+    (
+    	local oldCnrtl = copy obj.rotation.controller
+
+		obj.rotation.controller = rotation_list()
+    	obj.rotation.controller.available.controller = oc
+    	obj.rotation.controller.available.controller = oldCnrtl
+    	obj.rotation.controller.delete 1
+    	obj.rotation.controller.setActive 2
+		return(obj.rotation.controller)
+    )
+)
+
+--Adding LookAt constraint to node(obj) with parent(p) as target
+fn AddLookatConstraint obj: p: weight:50 fwd:6 up:2 ups:1 upNode: relative:false resetController:false =
+(
+	lc = LookAt_Constraint()
+	c = lc.constraints
+    c.appendTarget p weight
+
+    lc.relative = relative
+
+    --Do this to control roll through target
+    lc.pickUpNode = if (upNode == unsupplied) then undefined else p
+    lc.upnode_world = (upNode == unsupplied)
+
+    --#(5, 2, 4, 1)
+	--("X-Positive", "Y-Positive", "Z-Positive", "X-Negative", "Y-Negative", "Z-Negative")
+	case fwd of
+    (
+        1:
+        (
+            lc.target_axis = 0
+            lc.target_axisFlip = false
+        )
+
+        2:
+        (
+            lc.target_axis = 1
+            lc.target_axisFlip = false
+        )
+
+        3:
+        (
+        	lc.target_axis = 2
+            lc.target_axisFlip = false
+        )
+
+        4:
+        (
+            lc.target_axis = 0
+            lc.target_axisFlip = true
+        )
+
+        5:
+        (
+            lc.target_axis = 1
+            lc.target_axisFlip = true
+        )
+
+        6:
+        (
+        	lc.target_axis = 2
+            lc.target_axisFlip = true
+        )
+    )
+
+    lc.StoUP_axis = ups
+    lc.upnode_axis = up
+
+    if ((classOf(obj.rotation.controller) == rotation_list) and (resetController == false)) then
+    (
+    	obj.rotation.controller.available.controller = lc
+    	return(lc)
+    )
+    else
+    (
+    	local oldCnrtl = copy obj.rotation.controller
+
+		obj.rotation.controller = rotation_list()
+    	obj.rotation.controller.available.controller = lc
+    	obj.rotation.controller.available.controller = oldCnrtl
+    	obj.rotation.controller.delete 1
+    	obj.rotation.controller.setActive 2
+		return(obj.rotation.controller)
+    )
+)
+
+--Setup parent constraint
+fn AddParentConstraint tar: par: relative:false resetController:false =
+(
+	AddPositionConstraint obj:tar p:par relative:relative resetController:false
+	AddRotationConstraint obj:tar p:par relative:relative resetController:false
+)
+
+fn OrientForwardAxis obj: fwd:1 =
+(
+	if (obj == unsupplied or obj == undefined) do (return())
+
+	case fwd of
+	(
+		1: obj.rotation = eulerAngles 0 0 0   --X-Positive
+		2: obj.rotation = eulerAngles 0 0 -90 --Y-Positive
+		3: obj.rotation = eulerAngles 0 90 0  --Z-Positive
+		4: obj.rotation = eulerAngles 0 0 180 --X-Negative
+		5: obj.rotation = eulerAngles 0 0 90  --Y-Negative
+		6: obj.rotation = eulerAngles 0 -90 0 --Z-Negative
 	)
 )

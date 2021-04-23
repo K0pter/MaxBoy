@@ -43,24 +43,24 @@ rollout ToolBoy "ToolBoy"
 	(
 		group "Misc"
 		(
-		    button GiveDummies "Give Dummies" width:150 align:#left toolTip:"Add dummy object at selected object(s) transforms."
+		    button ui_Button_GiveDummies "Give Dummies" width:150 align:#left toolTip:"Add dummy object at selected object(s) transforms."
 
-		    multiListBox DummyType "Type" items:#("Cross", "Box", "Axis Tripod", "Center Marker") selection:#(1) height:4
-		    checkbox DummyInhParent "Inherit parent"
-		    checkbox DummyInhScale "Inherit scale"
-		    spinner DummyScale "Size" range:[0,1000,10] width:100 align:#left
+		    multiListBox ui_DummyType "Type" items:#("Cross", "Box", "Axis Tripod", "Center Marker") selection:#(1) height:4
+		    checkbox ui_DummyInhParent "Inherit parent"
+		    checkbox ui_DummyInhScale "Inherit scale"
+		    spinner ui_DummyScale "Size" range:[0,1000,10] width:100 align:#left
 		)
 
 		group "Transform"
 		(
-			button ResetXforms "Reset Xforms" width:150 align:#left
-			button bResetScales "Re-set Scales" width:150 align:#left
+			button ui_Button_ResetXforms "Reset Xforms" width:150 align:#left
+			button ui_Button_ResetScales "Reset Scales" width:150 align:#left
 		)
 
 		--Handle window scaling when rolled up
 		on UI_Settings rolledUp State do (ResizeFloaterWindow UI_Settings)
 
-		on GiveDummies pressed do
+		on ui_Button_GiveDummies pressed do
 		(
 			--clearListener()
 
@@ -79,26 +79,22 @@ rollout ToolBoy "ToolBoy"
 
 					if (tempArray == undefined) do (return())
 
-
 					--Copy nodes to make controllers for
 					local nodeCopies = CopyNodes collection:tempArray
 
-					--Create container for node hierarchy indexes
-					local indexArray = #()
-
 					--Sort controller array to make isolating the parents easier
-					sortToHierarchy &nodeCopies &indexArray
+					SortToHierarchy &nodeCopies
 
 					--Create local node to parent controllers to
 					local nodeParent = Point Size:20 name:"PointParent" box:true cross:true
 
-					for i = 1 to indexArray.count do
+					for i = 1 to nodeCopies.count do
 					(
 						--If parent isn't amongst the copies, parent to dummy parent
 						local localParent = findItem nodeCopies nodeCopies[i].parent
 
 						--If I'm at the top or have no other parent amongst the copies, copy to dummy
-						if (indexArray[i] == 1 or localParent == 0) do
+						if (i == 1 or localParent == undefined) do
 						(
 							nodeCopies[i].parent = nodeParent
 						)
@@ -113,13 +109,13 @@ rollout ToolBoy "ToolBoy"
 
 						if (o != undefined) then
 						(
-							if (DummyInhScale.state == true) then
+							if (ui_DummyInhScale.state == true) then
 							(
-								ps = getRelativeScale(o) / 2
+								ps = GetRelativeScale(o) / 2
 							)
 							else
 							(
-								ps = DummyScale.value
+								ps = ui_DummyScale.value
 							)
 
 							p = Point Size: (ps)
@@ -129,12 +125,12 @@ rollout ToolBoy "ToolBoy"
 
 							p.wirecolor = o.wirecolor
 
-							p.cross = DummyType.selection[1]
-							p.box = DummyType.selection[2]
-							p.centermarker = DummyType.selection[3]
-							p.axistripod = DummyType.selection[4]
+							p.cross = ui_DummyType.selection[1]
+							p.box = ui_DummyType.selection[2]
+							p.centermarker = ui_DummyType.selection[3]
+							p.axistripod = ui_DummyType.selection[4]
 
-							if (DummyInhParent.checked == true) then
+							if (ui_DummyInhParent.checked == true) then
 							(
 								p.parent = o.parent
 
@@ -149,7 +145,7 @@ rollout ToolBoy "ToolBoy"
 						)
 					)
 
-					if (DummyInhParent.checked == false) do (delete nodeParent)
+					if (ui_DummyInhParent.checked == false) do (delete nodeParent)
 
 					--Delete hierarchy reference objects
 					for obj in nodeCopies do (delete obj)
@@ -157,7 +153,7 @@ rollout ToolBoy "ToolBoy"
 			)
 		)
 
-		on ResetXforms pressed do
+		on ui_Button_ResetXforms pressed do
 		(
 			clearListener()
 			print("Resetting Xforms!")
@@ -267,7 +263,7 @@ rollout ToolBoy "ToolBoy"
 			)
 		)
 
-		on bResetScales pressed do
+		on ui_Button_ResetScales pressed do
 		(
 			--Moved to generic function for multi-usage
 			local scaleArray = (selection as array)
@@ -354,27 +350,24 @@ rollout ToolBoy "ToolBoy"
 					)
 				)
 
-				stripPrefixes &collectionArray
+				StripPrefixes &collectionArray
 
 				--Copy nodes to make controllers for
 				local controllerCopies = CopyNodes collection:collectionArray
 
-				--Create container for node hierarchy indexes
-				local indexArray = #()
-
 				--Sort controller array to make isolating the parents easier
-				sortToHierarchy &controllerCopies &indexArray
+				SortToHierarchy &controllerCopies
 
 				--Create local node to parent controllers to
 				local cntrlParent = Point Size:20 name:"CntrlParent"
 
-				for i = 1 to indexArray.count do
+				for i = 1 to controllerCopies.count do
 				(
 					--If parent isn't amongst the copies, parent to dummy parent
 					local localParent = findItem controllerCopies controllerCopies[i].parent
 
 					--If I'm at the top or have no other parent amongst the copies, copy to dummy
-					if (indexArray[i] == 1 or localParent == 0) do
+					if (i == 1 or localParent == undefined) do
 					(
 						controllerCopies[i].parent = cntrlParent
 					)
@@ -398,7 +391,7 @@ rollout ToolBoy "ToolBoy"
 
 							if (CntrlInhScale.checked == true) then
 							(
-								rad = getRelativeScale(o) / 3
+								rad = GetRelativeScale(o) / 3
 							)
 							else
 							(
@@ -439,7 +432,7 @@ rollout ToolBoy "ToolBoy"
 
 							if (c == undefined) then
 							(
-								b_height = getRelativeScale(o) / 1
+								b_height = GetRelativeScale(o) / 1
 							)
 							else
 							(
@@ -532,7 +525,7 @@ rollout ToolBoy "ToolBoy"
 			if (selection.count != 0) then
 			(
 				_ControllerArray = (selection as array)
-				_BoneArray = getChildren obj:ConstraintTarget.object
+				_BoneArray = GetChildren obj:ConstraintTarget.object
 			)
 			else
 			(
@@ -679,37 +672,38 @@ rollout ToolBoy "ToolBoy"
 	(
 		group "Instancing"
 		(
-			button RefreshInstances "Refresh Instances" width:150 align:#left
-			label refLabel "Instance Reference" align:#left
-			pickbutton InstanceRef "[ Instance Object ]" width:150 align:#left
+			button ui_RefreshInstances "Refresh Instances" width:150 align:#left
+			label ui_InstanceRef_Label "Instance Reference" align:#left
+			pickbutton ui_InstanceRef "[ Instance Object ]" width:150 align:#left
 		)
 
 		group ""
 		(
-			button SelectChildren "Select children" width:150
-			button AnimBaker "Anim Baker" width:150
+			button ui_SelectChildren "Select children" width:150
+			button ui_AnimBaker "Anim Baker" width:150
+			button ui_UpdateSK "Update SK" width:150
 		)
 
-		group "Diagnose"
+		group "System"
 		(
-			button CleanMem "Clean Mem" width:150 align:#left toolTip:"Clears scene memory caches"
-			button nodeCheckup "Checkup!" width:150 align:#left toolTip:"Return bad transforms and other data"
+			button ui_CleanMem "Clean Mem" width:150 align:#left toolTip:"Clears scene memory caches"
+			--button ui_NodeCheckup "Checkup!" width:150 align:#left toolTip:"Return bad transforms and other data"
 		)
 
 		on UI_Functions rolledUp State do (ResizeFloaterWindow UI_Functions)
 
-		on InstanceRef picked newRef do
+		on ui_InstanceRef picked newRef do
 		(
-			InstanceRef.text = newRef.name
+			ui_InstanceRef.text = newRef.name
 		)
 
-		on SelectChildren pressed do
+		on ui_SelectChildren pressed do
 		(
 			if selection.count == 1 then
 			(
 				selectionArray = #($)
 
-				select(getChildren obj:selection[1])
+				select(GetChildren obj:selection[1])
 
 				join selectionArray selection
 
@@ -722,14 +716,33 @@ rollout ToolBoy "ToolBoy"
 			)
 		)
 
-		on AnimBaker pressed do
+		on ui_AnimBaker pressed do
 		(
-			local animBakerPath = ((pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\ToolBoy_AnimBaker.ms")) as string
-
-			fileIN animBakerPath
+			try
+			(
+				local animBakerPath = ((pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\ToolBoy_AnimBaker.ms")) as string
+				fileIN animBakerPath
+			)
+			catch
+			(
+				MessageBox "Unable to find script file! Try reinstalling suite!" title:"External script error"
+			)
 		)
 
-		on nodeCheckup pressed do
+		on ui_UpdateSK pressed do
+		(
+			try
+			(
+				local animBakerPath = ((pathConfig.GetDir #userScripts) + ( "\\MaxBoy\\ToolBoy_UpdateRigSK.ms")) as string
+				fileIN animBakerPath
+			)
+			catch
+			(
+				MessageBox "Unable to find script file! Try reinstalling suite!" title:"External script error"
+			)
+		)
+
+		on ui_NodeCheckup pressed do
 		(
 			local aNodes = #() --All nodes
 			local bNodes = #() --Bad nodes
@@ -740,12 +753,14 @@ rollout ToolBoy "ToolBoy"
 
 			if (selection.count == 0) then
 			(
-				local bArray = getPrefixObjects pre:s_bPrefix --Get all bone objects
-				local cArray = getPrefixObjects pre:s_cPrefix --Get all controller objects
+				local RootNodes = GetRootNodes()
 
-				--Add them all together
-				Join aNodes bArray
-				Join aNodes cArray
+				if (ClassOf(RootNodes) != Array) do (RootNodes = #(RootNodes))
+
+				for r in RootNodes do
+				(
+					join aNodes (GetChildren obj:r)
+				)
 			)
 			else
 			(
@@ -755,39 +770,50 @@ rollout ToolBoy "ToolBoy"
 			for o in aNodes do
 			(
 				--Check scale (should be [1,1,1] for proper use)
-				if (o.scale != [1,1,1]) do
+				if (o.scale.x != 1.0 or o.scale.y != 1.0 or o.scale.z != 1.0) do
 				(
 					append bNodes o
-
 					r_badScale = true
 				)
 			)
 
-			if (r_badScale) do
+			if (r_badScale) then
 			(
-				rollout dumpMessage "Dump" width:380 height:350
+				rollout FixupDialogue "Fixup" width:380 height:350
 				(
 					local bn = #()
 
-					label badScales "[Bad scale nodes]" align:#left
-					MultiListBox bs_n "Nodes" width:175 height:15 pos:[15,40]
-					MultiListBox bs_ns "Scales" width:165 height:15 pos:[200,40]
+					label ui_BadScales "[Bad scale nodes]" align:#left
+					MultiListBox ui_BadScales_Nodes "Nodes" width:225 height:15 pos:[15,40]
+					--MultiListBox ui_BadScales_Scales "Scales" width:165 height:15 pos:[200,40]
 
-					button ok "OK" pos:[145,300] width:100 align:#center
-					button fix "Fix" pos:[90,275] width:100 align:#center
-					button fixAll "Fix All" pos:[200,275] width:100 align:#center
+					button ui_Button_OK "OK" pos:[145,300] width:100 align:#center
+					button ui_Button_Fix "Fix" pos:[90,275] width:100 align:#center
+					button ui_Button_FixAll "Fix All" pos:[200,275] width:100 align:#center
 
-					button refresh "Refresh" pos:[145,300] width:100 align:#center
+					button ui_Button_Refresh "Refresh" pos:[145,300] width:100 align:#center
 
-					on ok pressed do
+					on ui_BadScales_Nodes selectionEnd do
 					(
-						--Close dialogue window with button
-						DestroyDialog dumpMessage
+						ClearSelection()
+
+						for s in ui_BadScales_Nodes.selection do
+						(
+							local selectedNode = getnodebyname ui_BadScales_Nodes.items[s]
+
+							if (selectedNode != undefined) do ( selectmore selectedNode )
+						)
 					)
 
-					on fix pressed do
+					on ui_Button_OK pressed do
 					(
-						local sel = bs_n.selection
+						--Close dialogue window with button
+						DestroyDialog FixupDialogue
+					)
+
+					on ui_Button_Fix pressed do
+					(
+						local sel = ui_BadScales_Nodes.selection
 						if sel.isEmpty do (return())
 						sel = sel as array
 
@@ -801,31 +827,38 @@ rollout ToolBoy "ToolBoy"
 
 						if (selectedNodes.count > 0) do (ResetScales(selectedNodes))
 
-						bs_ns.items = (for o in bn collect (o.scale as string))
+						--ui_BadScales_Scales.items = (for o in bn collect (o.scale as string))
 					)
 
-					on fixAll pressed do
+					on ui_Button_FixAll pressed do
 					(
 						ResetScales(bn)
 
-						bs_ns.items = (for o in bn collect (o.scale as string))
+						--ui_BadScales_Scales.items = (for o in bn collect (o.scale as string))
 					)
 				)
 
-				CreateDialog dumpMessage
+				CreateDialog FixupDialogue
 				--Has to be placed after rollout creation!
-				Join dumpMessage.bn bNodes
+				Join FixupDialogue.bn bNodes
 
-				dumpMessage.bs_n.items = (for o in bNodes collect o.name)
-				dumpMessage.bs_ns.items = (for o in bNodes collect (o.scale as string))
+				FixupDialogue.ui_BadScales_Nodes.items = (for o in bNodes collect o.name)
+				--FixupDialogue.ui_BadScales_Nodes.items = (for o in bNodes collect (o.name + " :: " + (o.scale as string)))
+				--FixupDialogue.ui_BadScales_Scales.items = (for o in bNodes collect (o.scale as string))
+			)
+			else
+			(
+				print("Everything checks out!")
 			)
 		)
 
-		on CleanMem pressed do
+		on ui_CleanMem pressed do
 		(
 			gc()
 			freescenebitmaps()
 			clearundobuffer()
+
+			print("Cleared cached data!")
 		)
 
 		on RefreshSkinnedMesh pressed do
@@ -850,7 +883,7 @@ rollout ToolBoy "ToolBoy"
 			free MeshesToRefresh
 		)
 
-		on RefreshInstances pressed do
+		on ui_RefreshInstances pressed do
 		(
 			try
 			(
@@ -863,12 +896,12 @@ rollout ToolBoy "ToolBoy"
 					--if (o.name == matchPattern(storedName*)) do
 					o = filterSelection[i]
 
-					maxOps.cloneNodes InstanceRef.object cloneType:#instance newNodes:&newNode #nodialog
+					maxOps.cloneNodes ui_InstanceRef.object cloneType:#instance newNodes:&newNode #nodialog
 
 					newNode[1].parent = o.parent
 					newNode[1].transform = o.transform
 
-					--print("Replacing: " + o.name + " with ref: " + InstanceRef.object.name)
+					--print("Replacing: " + o.name + " with ref: " + ui_InstanceRef.object.name)
 
 					delete o
 				)
