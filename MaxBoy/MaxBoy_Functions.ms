@@ -50,7 +50,7 @@ fn validArray tArray =
 	)
 	else
 	(
-		printc("No objects, exiting sort.")
+		--printc("No objects, exiting sort.")
 		return(false)
 	)
 )

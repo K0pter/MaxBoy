@@ -73,7 +73,7 @@ struct LocalSettings
 	s_ac_Prefix, 		--String
 	s_ac_FindIntelligent,--booleanClass
 	s_ac_LockRoot, 		--booleanClass
-	s_ac_LockRootDepth, --booleanClass
+	s_ac_LockRootDepth, --Integer
 
 	s_ac_FilePrefix,	--String
 	s_ac_FileSuffix,	--String
@@ -711,7 +711,7 @@ rollout PipeBoy "PipeBoy"
 					        occ.appendTarget rootLocker 100.0
 
 					        --Apply constraints in certain depth in rig
-					        for i = 1 to s_ac_LockRootDepth do
+					        for i = 1 to LS.s_ac_LockRootDepth do
 					        (
 					        	try
 					        	(
@@ -805,10 +805,17 @@ rollout PipeBoy "PipeBoy"
 							local exportSelectionSeparated = #(e_mesh)
 
 							--Get customized collision for unreal
+							local convexSearchString  = ("UCX_" + e_mesh.name) as string
+							local boxSearchString     = ("UBX_" + e_mesh.name) as string
+							local capsuleSearchString = ("UCP_" + e_mesh.name) as string
+							local sphereSearchString  = ("USP_" + e_mesh.name) as string
+
+							/*--Previous approach included all numbered versions...
 							local convexSearchString  = ("UCX_" + e_mesh.name + "*") as string
 							local boxSearchString     = ("UBX_" + e_mesh.name + "*") as string
 							local capsuleSearchString = ("UCP_" + e_mesh.name + "*") as string
 							local sphereSearchString  = ("USP_" + e_mesh.name + "*") as string
+							*/
 
 							for n in $* do
 							(
